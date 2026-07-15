@@ -1,0 +1,2154 @@
+{
+    "model_id": "qwen3_4b",
+    "model_name": "Qwen3-4B",
+    "runtime": "geniex_qairt",
+    "precision": "w4a16",
+    "tool_versions": {
+        "qairt": "2.45.0.260326154327"
+    },
+    "model_files": {
+        "part1_of_4.bin": {
+            "inputs": {
+                "input_ids": {
+                    "shape": [
+                        1,
+                        1
+                    ],
+                    "dtype": "int32"
+                }
+            },
+            "outputs": {
+                "embedding": {
+                    "shape": [
+                        1,
+                        1,
+                        2560
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 7.1973709054873325e-6,
+                        "zero_point": 30800
+                    }
+                }
+            }
+        },
+        "part2_of_4.bin": {
+            "inputs": {
+                "past_key_0_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 2.345790147781372,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_0_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.004396342672407627,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_1_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.47457584738731384,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_1_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.005273671820759773,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_2_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.20883603394031525,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_2_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.0066236164420843124,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_3_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.20998451113700867,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_3_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.009058302268385887,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_4_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.5082660913467407,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_4_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.010039279237389565,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_5_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.8604878783226013,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_5_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.011779437772929668,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_6_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.3276314437389374,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_6_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.015452229417860508,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_7_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.2633135914802551,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_7_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.023205885663628578,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_8_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.4432932138442993,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_8_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.025590643286705017,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_9_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.19899481534957886,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_9_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.02567124180495739,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_10_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.3400344252586365,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_10_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.047514863312244415,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_11_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.30140188336372375,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_11_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.029060302302241325,
+                        "zero_point": 128
+                    }
+                },
+                "embedding": {
+                    "shape": [
+                        1,
+                        1,
+                        2560
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 7.1973709054873325e-6,
+                        "zero_point": 30800
+                    }
+                },
+                "position_ids_cos": {
+                    "shape": [
+                        1,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.00003051804378628731,
+                        "zero_point": 32768
+                    }
+                },
+                "position_ids_sin": {
+                    "shape": [
+                        1,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.00003051804378628731,
+                        "zero_point": 32768
+                    }
+                },
+                "attention_mask": {
+                    "shape": [
+                        1,
+                        1,
+                        1,
+                        3072
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.0015259021893143654,
+                        "zero_point": 65535
+                    }
+                }
+            },
+            "outputs": {
+                "add_42076": {
+                    "shape": [
+                        1,
+                        1,
+                        2560
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.21770891547203064,
+                        "zero_point": 14531
+                    }
+                },
+                "past_key_0_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 2.345790147781372,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_0_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.004396342672407627,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_1_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.47457584738731384,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_1_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.005273671820759773,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_2_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.20883603394031525,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_2_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.0066236164420843124,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_3_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.20998451113700867,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_3_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.009058302268385887,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_4_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.5082660913467407,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_4_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.010039279237389565,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_5_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.8604878783226013,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_5_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.011779437772929668,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_6_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.3276314437389374,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_6_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.015452229417860508,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_7_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.2633135914802551,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_7_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.023205885663628578,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_8_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.4432932138442993,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_8_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.025590643286705017,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_9_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.19899481534957886,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_9_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.02567124180495739,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_10_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.3400344252586365,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_10_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.047514863312244415,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_11_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.30140188336372375,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_11_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.029060302302241325,
+                        "zero_point": 128
+                    }
+                }
+            }
+        },
+        "part3_of_4.bin": {
+            "inputs": {
+                "past_key_12_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1023
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.2443227916955948,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_12_in": {
+                    "shape": [
+                        8,
+                        1,
+                        1023,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.02894037589430809,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_13_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1023
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.21850037574768066,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_13_in": {
+                    "shape": [
+                        8,
+                        1,
+                        1023,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.17545437812805176,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_14_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1023
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.2587217390537262,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_14_in": {
+                    "shape": [
+                        8,
+                        1,
+                        1023,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.09416288137435913,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_15_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1023
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.18699948489665985,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_15_in": {
+                    "shape": [
+                        8,
+                        1,
+                        1023,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.2346538007259369,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_16_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1023
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.2061757892370224,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_16_in": {
+                    "shape": [
+                        8,
+                        1,
+                        1023,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.19758309423923492,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_17_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1023
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.17539973556995392,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_17_in": {
+                    "shape": [
+                        8,
+                        1,
+                        1023,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.32720860838890076,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_18_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1023
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.19263409078121185,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_18_in": {
+                    "shape": [
+                        8,
+                        1,
+                        1023,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.16426491737365723,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_19_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1023
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.21870377659797668,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_19_in": {
+                    "shape": [
+                        8,
+                        1,
+                        1023,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.060838449746370316,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_20_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1023
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.1891358345746994,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_20_in": {
+                    "shape": [
+                        8,
+                        1,
+                        1023,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.05266200378537178,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_21_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1023
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.19000622630119324,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_21_in": {
+                    "shape": [
+                        8,
+                        1,
+                        1023,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.0635426789522171,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_22_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1023
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.22853676974773407,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_22_in": {
+                    "shape": [
+                        8,
+                        1,
+                        1023,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.19043058156967163,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_23_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1023
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.23495075106620789,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_23_in": {
+                    "shape": [
+                        8,
+                        1,
+                        1023,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.067696213722229,
+                        "zero_point": 128
+                    }
+                },
+                "add_42076": {
+                    "shape": [
+                        1,
+                        1,
+                        2560
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.21770891547203064,
+                        "zero_point": 14531
+                    }
+                },
+                "position_ids_cos": {
+                    "shape": [
+                        1,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.00003051804378628731,
+                        "zero_point": 32768
+                    }
+                },
+                "position_ids_sin": {
+                    "shape": [
+                        1,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.00003051804378628731,
+                        "zero_point": 32768
+                    }
+                },
+                "attention_mask": {
+                    "shape": [
+                        1,
+                        1,
+                        1,
+                        1024
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.0015259021893143654,
+                        "zero_point": 65535
+                    }
+                }
+            },
+            "outputs": {
+                "add_82384": {
+                    "shape": [
+                        1,
+                        1,
+                        2560
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.2219948172569275,
+                        "zero_point": 14218
+                    }
+                },
+                "past_key_12_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.2443227916955948,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_12_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.02894037589430809,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_13_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.21850037574768066,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_13_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.17545437812805176,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_14_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.2587217390537262,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_14_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.09416288137435913,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_15_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.18699948489665985,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_15_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.2346538007259369,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_16_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.2061757892370224,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_16_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.19758309423923492,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_17_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.17539973556995392,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_17_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.32720860838890076,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_18_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.19263409078121185,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_18_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.16426491737365723,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_19_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.21870377659797668,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_19_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.060838449746370316,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_20_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.1891358345746994,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_20_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.05266200378537178,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_21_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.19000622630119324,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_21_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.0635426789522171,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_22_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.22853676974773407,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_22_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.19043058156967163,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_23_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.23495075106620789,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_23_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.067696213722229,
+                        "zero_point": 128
+                    }
+                }
+            }
+        },
+        "part4_of_4.bin": {
+            "inputs": {
+                "past_key_24_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.2168474942445755,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_24_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.0993499606847763,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_25_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.16338758170604706,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_25_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.08785130083560944,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_26_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.17082346975803375,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_26_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.09179645776748657,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_27_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.15799155831336975,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_27_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.11564768105745316,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_28_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.163216695189476,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_28_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.12118262052536011,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_29_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.181901752948761,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_29_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.3510308563709259,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_30_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.18615905940532684,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_30_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.29017698764801025,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_31_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.19037732481956482,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_31_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.3625663220882416,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_32_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.15537120401859283,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_32_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.45803919434547424,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_33_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.1733824461698532,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_33_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.9015522599220276,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_34_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.17443639039993286,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_34_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.8790855407714844,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_35_in": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        3071
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.35408836603164673,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_35_in": {
+                    "shape": [
+                        8,
+                        1,
+                        3071,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.470033198595047,
+                        "zero_point": 128
+                    }
+                },
+                "add_82384": {
+                    "shape": [
+                        1,
+                        1,
+                        2560
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.2219948172569275,
+                        "zero_point": 14218
+                    }
+                },
+                "position_ids_cos": {
+                    "shape": [
+                        1,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.00003051804378628731,
+                        "zero_point": 32768
+                    }
+                },
+                "position_ids_sin": {
+                    "shape": [
+                        1,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.00003051804378628731,
+                        "zero_point": 32768
+                    }
+                },
+                "attention_mask": {
+                    "shape": [
+                        1,
+                        1,
+                        1,
+                        3072
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.0015259021893143654,
+                        "zero_point": 65535
+                    }
+                }
+            },
+            "outputs": {
+                "logits": {
+                    "shape": [
+                        1,
+                        1,
+                        151936
+                    ],
+                    "dtype": "uint16",
+                    "quantization_parameters": {
+                        "scale": 0.0013899722835049033,
+                        "zero_point": 26872
+                    }
+                },
+                "past_key_24_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.2168474942445755,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_24_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.0993499606847763,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_25_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.16338758170604706,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_25_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.08785130083560944,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_26_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.17082346975803375,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_26_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.09179645776748657,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_27_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.15799155831336975,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_27_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.11564768105745316,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_28_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.163216695189476,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_28_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.12118262052536011,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_29_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.181901752948761,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_29_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.3510308563709259,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_30_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.18615905940532684,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_30_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.29017698764801025,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_31_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.19037732481956482,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_31_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.3625663220882416,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_32_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.15537120401859283,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_32_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.45803919434547424,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_33_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.1733824461698532,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_33_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.9015522599220276,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_34_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.17443639039993286,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_34_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.8790855407714844,
+                        "zero_point": 128
+                    }
+                },
+                "past_key_35_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        1
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.35408836603164673,
+                        "zero_point": 128
+                    }
+                },
+                "past_value_35_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        128
+                    ],
+                    "dtype": "uint8",
+                    "quantization_parameters": {
+                        "scale": 0.470033198595047,
+                        "zero_point": 128
+                    }
+                }
+            }
+        }
+    },
+    "supplementary_files": {
+        "htp_backend_ext_config.json": "HTP backend configuration for the target device.",
+        "genie_config.json": "Genie SDK configuration for on-device LLM inference.",
+        "sample_prompt.txt": "Sample prompt for on-device inference.",
+        "tokenizer.json": "Tokenizer for encoding/decoding text."
+    },
+    "genie": {
+        "chat_template": {
+            "system_prefix": "<|im_start|>system\n",
+            "system_suffix": "<|im_end|>\n",
+            "user_prefix": "<|im_start|>user\n",
+            "user_suffix": "<|im_end|>\n",
+            "assistant_prefix": "<|im_start|>assistant\n",
+            "assistant_suffix": "<|im_end|>\n",
+            "default_system_prompt": "You are a helpful AI assistant."
+        },
+        "context_lengths": [
+            512,
+            1024,
+            2048,
+            3072,
+            4096
+        ],
+        "supports_thinking": true
+    },
+    "chipset_attributes": {
+        "aliases": [
+            "qualcomm-qcs8550-proxy",
+            "qualcomm-dragonwing-qcs8550-proxy"
+        ],
+        "marketing_name": "Qualcomm® QCS8550 (Proxy)",
+        "world": "IoT",
+        "supports_fp16": true,
+        "htp_version": 73,
+        "soc_model": 43,
+        "reference_device": "QCS8550 (Proxy)",
+        "supports_weight_sharing": true,
+        "name": "qualcomm-qcs8550-proxy"
+    }
+}

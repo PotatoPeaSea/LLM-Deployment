@@ -1,0 +1,5 @@
+<|im_start|>system
+You are a helpful AI assistant.<|im_end|>
+<|im_start|>user
+What is gravity? Keep the answer under ten words.<|im_end|>
+<|im_start|>assistant
