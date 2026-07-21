@@ -5,6 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     python3.10 python3.10-venv python3-pip \
     git wget curl unzip android-tools-adb usbutils \
+    ffmpeg libportaudio2 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python3.10 -m venv /opt/venv
@@ -19,6 +20,12 @@ RUN pip install --upgrade pip
 # always the same string as the model id, e.g. qwen3_4b -> "qwen3-4b").
 ARG MODEL_EXTRA=""
 RUN if [ -n "$MODEL_EXTRA" ]; then pip install "qai-hub-models[${MODEL_EXTRA}]"; else pip install qai-hub-models; fi
+
+# accelerate: needed by transformers' from_pretrained (init_empty_weights) for
+# any model that loads a local/HF checkpoint through this exact code path --
+# not pulled in by qai-hub-models itself. whisper-base: audio pre/post-processing
+# deps (librosa etc.) for the Whisper export/demo scripts.
+RUN pip install accelerate "qai-hub-models[whisper-base]"
 
 WORKDIR /workspace
 

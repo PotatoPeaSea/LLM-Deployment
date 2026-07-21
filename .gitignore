@@ -1,0 +1,68 @@
+# ---- Secrets / credentials ----
+secrets.txt
+*.pem
+*.key
+.env
+.env.*
+genie-on-device/workspace/qai_hub_config/
+**/client.ini
+
+# ---- Large build / model artifacts ----
+# AI Hub model cache (tens of GB)
+genie-on-device/workspace/qaihm_cache/
+# Compiled context binaries + export output from 04_export_model.sh
+genie-on-device/workspace/output/
+
+# On-device deploy bundles: keep the small hand-editable configs,
+# drop the QAIRT runtime libs, context binaries and tokenizer blobs.
+genie-on-device/workspace/deploy/**/*.so
+genie-on-device/workspace/deploy/**/*.bin
+genie-on-device/workspace/deploy/**/*.dlc
+genie-on-device/workspace/deploy/**/*.serialized
+genie-on-device/workspace/deploy/**/genie-t2t-run
+genie-on-device/workspace/deploy/**/qnn-net-run
+genie-on-device/workspace/deploy/**/dsp/
+genie-on-device/workspace/deploy/**/tokenizer.json
+genie-on-device/workspace/deploy/**/vocab.json
+genie-on-device/workspace/deploy/**/merges.txt
+
+# Model weights / checkpoints anywhere
+*.onnx
+*.onnx.data
+*.gguf
+*.safetensors
+*.pt
+*.pth
+*.tflite
+
+# ---- Media / recordings ----
+*.m4a
+*.wav
+*.mp3
+*.raw
+
+# ---- Archives ----
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.ipynb_checkpoints/
+
+# ---- Logs / scratch ----
+*.log
+tmp/
+scratch/
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

@@ -9,6 +9,17 @@ so nothing is installed into the machine's global Python environment. The
 container needs Python 3.10 specifically (qai-hub-models pins `>=3.10,<3.14`),
 which may conflict with other projects on the host.
 
+## Documentation map
+
+- **[../INDEX.md](../INDEX.md)** — top-level index + fast path + script reference.
+- **This file** — findings, gotchas, directory layout, runtime (QAIRT) details.
+- **[REPRODUCTION.md](REPRODUCTION.md)** — step-by-step reproduction, exact
+  commands, and a full "what didn't work + why + fix" section.
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — how the components interact, the data
+  flow, and why context length is the memory knob.
+- **`.claude/skills/deploy-genie-llm/SKILL.md`** — condensed reusable runbook for
+  applying this to a new model/chip.
+
 ## Key findings from setting this up (read before changing models)
 
 1. **AI Hub's own model catalog page and the published PyPI package can be
@@ -57,15 +68,45 @@ which may conflict with other projects on the host.
    Genie (`genie-t2t-run`); revisit GenieX before doing new deployments after
    mid-2026.
 
-5. **The exported bundle contains ONLY the model, not the runtime.** This is
-   the single biggest gotcha. `04_export_model.sh` produces a directory with:
+5. **On QCS8550, Qwen3-4B only loads at context length 512 — 4096 and 1024
+   fail.** This was the hardest-won finding. At the default 4096 context,
+   `genie-t2t-run` fails during model load with:
+   ```
+   [ERROR] "Could not create context from binary for context index = 2 : err 1002"
+   ```
+   The 4B model is split into 4 QNN context binaries that must all be resident
+   on the HTP/DSP at once, and each context reserves DSP memory (VTCM / graph
+   scratch / I/O buffers) that scales with context length. QCS8550's DSP budget
+   is smaller than the flagships this model targets, so the load runs out of
+   memory partway through. Lowering `--context-lengths` at export time is the
+   fix — the failure point moved predictably as we shrank it:
+
+   | Context length | Buffer alloc | Result |
+   |----------------|--------------|--------|
+   | 4096 (default) | 344 MB | fails at context idx **2** (loads 2/4) |
+   | 1024 | 116 MB | fails at context idx **3** (loads 3/4) |
+   | **512** | **79 MB** | **loads all 4/4, runs** ✅ |
+
+   Things that did **NOT** help (ruled out, so don't waste time on them):
+   - **QAIRT runtime version**: 2.45/2.46/2.47 all behave identically (same
+     `libGenie.so 1.18.0`); the tutorial's "match the compile version" advice
+     did not apply here. Version mismatch was not the cause.
+   - **`genie_config.json` knobs** `spill-fill-bufsize` (tried = largest
+     context bin) and `use-mmap: false`: no effect on the load failure.
+
+   Working run at 512: ~19.9 tok/s generation, 92 ms TTFT, ~303 tok/s prefill.
+   If you need longer context on this board, you'd need a smaller model
+   (e.g. `qwen3_1_7b`) — 4B at >512 context does not fit QCS8550's DSP.
+
+6. **The exported bundle contains ONLY the model, not the runtime.** This is
+   another big gotcha. `04_export_model.sh` produces a directory with:
    `part1..N_of_N.bin` (compiled QNN context binaries), `genie_config.json`,
    `htp_backend_ext_config.json`, and tokenizer files. It does **not** contain
    `genie-t2t-run` or any `.so` libraries. The runtime comes **separately from
    the QAIRT SDK** and must be pushed to the device alongside the model. See
    "Runtime (QAIRT SDK)" below.
 
-6. Minimum QNN/QAIRT SDK version is model-specific (the export prints the exact
+7. Minimum QNN/QAIRT SDK version is model-specific (the export prints the exact
    `qairt:` build it compiled with at the end, e.g. `2.45.0.260326154327` for
    Qwen3-4B; also in `info.yaml`'s `minimum_qnn_sdk_version`). The device does
    not need a system-wide QAIRT install, but the QAIRT runtime `.so` files +

@@ -12,7 +12,7 @@
                 "input_ids": {
                     "shape": [
                         1,
-                        1
+                        128
                     ],
                     "dtype": "int32"
                 }
@@ -21,7 +21,7 @@
                 "embedding": {
                     "shape": [
                         1,
-                        1,
+                        128,
                         2560
                     ],
                     "dtype": "uint16",
@@ -39,7 +39,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -51,7 +51,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -65,7 +65,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -77,7 +77,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -91,7 +91,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -103,7 +103,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -117,7 +117,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -129,7 +129,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -143,7 +143,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -155,7 +155,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -169,7 +169,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -181,7 +181,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -195,7 +195,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -207,7 +207,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -221,7 +221,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -233,7 +233,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -247,7 +247,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -259,7 +259,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -273,7 +273,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -285,7 +285,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -299,7 +299,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -311,7 +311,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -325,7 +325,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -337,7 +337,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -389,7 +389,7 @@
                         1,
                         1,
                         1,
-                        3072
+                        512
                     ],
                     "dtype": "uint16",
                     "quantization_parameters": {
@@ -732,7 +732,7 @@
                         8,
                         1,
                         128,
-                        1023
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -744,7 +744,7 @@
                     "shape": [
                         8,
                         1,
-                        1023,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -758,7 +758,7 @@
                         8,
                         1,
                         128,
-                        1023
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -770,7 +770,7 @@
                     "shape": [
                         8,
                         1,
-                        1023,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -784,7 +784,7 @@
                         8,
                         1,
                         128,
-                        1023
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -796,7 +796,7 @@
                     "shape": [
                         8,
                         1,
-                        1023,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -810,7 +810,7 @@
                         8,
                         1,
                         128,
-                        1023
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -822,7 +822,7 @@
                     "shape": [
                         8,
                         1,
-                        1023,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -836,7 +836,7 @@
                         8,
                         1,
                         128,
-                        1023
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -848,7 +848,7 @@
                     "shape": [
                         8,
                         1,
-                        1023,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -862,7 +862,7 @@
                         8,
                         1,
                         128,
-                        1023
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -874,7 +874,7 @@
                     "shape": [
                         8,
                         1,
-                        1023,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -888,7 +888,7 @@
                         8,
                         1,
                         128,
-                        1023
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -900,7 +900,7 @@
                     "shape": [
                         8,
                         1,
-                        1023,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -914,7 +914,7 @@
                         8,
                         1,
                         128,
-                        1023
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -926,7 +926,7 @@
                     "shape": [
                         8,
                         1,
-                        1023,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -940,7 +940,7 @@
                         8,
                         1,
                         128,
-                        1023
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -952,7 +952,7 @@
                     "shape": [
                         8,
                         1,
-                        1023,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -966,7 +966,7 @@
                         8,
                         1,
                         128,
-                        1023
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -978,7 +978,7 @@
                     "shape": [
                         8,
                         1,
-                        1023,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -992,7 +992,7 @@
                         8,
                         1,
                         128,
-                        1023
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1004,7 +1004,7 @@
                     "shape": [
                         8,
                         1,
-                        1023,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1018,7 +1018,7 @@
                         8,
                         1,
                         128,
-                        1023
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1030,7 +1030,7 @@
                     "shape": [
                         8,
                         1,
-                        1023,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1082,7 +1082,7 @@
                         1,
                         1,
                         1,
-                        1024
+                        512
                     ],
                     "dtype": "uint16",
                     "quantization_parameters": {
@@ -1425,7 +1425,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1437,7 +1437,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1451,7 +1451,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1463,7 +1463,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1477,7 +1477,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1489,7 +1489,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1503,7 +1503,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1515,7 +1515,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1529,7 +1529,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1541,7 +1541,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1555,7 +1555,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1567,7 +1567,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1581,7 +1581,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1593,7 +1593,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1607,7 +1607,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1619,7 +1619,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1633,7 +1633,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1645,7 +1645,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1659,7 +1659,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1671,7 +1671,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1685,7 +1685,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1697,7 +1697,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1711,7 +1711,7 @@
                         8,
                         1,
                         128,
-                        3071
+                        511
                     ],
                     "dtype": "uint8",
                     "quantization_parameters": {
@@ -1723,7 +1723,7 @@
                     "shape": [
                         8,
                         1,
-                        3071,
+                        511,
                         128
                     ],
                     "dtype": "uint8",
@@ -1775,7 +1775,7 @@
                         1,
                         1,
                         1,
-                        3072
+                        512
                     ],
                     "dtype": "uint16",
                     "quantization_parameters": {
@@ -2129,11 +2129,7 @@
             "default_system_prompt": "You are a helpful AI assistant."
         },
         "context_lengths": [
-            512,
-            1024,
-            2048,
-            3072,
-            4096
+            512
         ],
         "supports_thinking": true
     },

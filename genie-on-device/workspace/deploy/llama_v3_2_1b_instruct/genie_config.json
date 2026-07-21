@@ -5,9 +5,13 @@
         "context": {
             "version": 1,
             "size": 512,
-            "n-vocab": 151936,
-            "bos-token": 151643,
-            "eos-token": 151645
+            "n-vocab": 128256,
+            "bos-token": 128000,
+            "eos-token": [
+                128001,
+                128008,
+                128009
+            ]
         },
         "sampler": {
             "version": 1,
@@ -33,10 +37,8 @@
                     "mmap-budget": 0,
                     "poll": true,
                     "cpu-mask": "0xe0",
-                    "kv-dim": 128,
-                    "allow-async-init": false,
-                    "pos-id-dim": 64,
-                    "rope-theta": 1000000
+                    "kv-dim": 64,
+                    "allow-async-init": false
                 },
                 "extensions": "htp_backend_ext_config.json"
             },
@@ -46,11 +48,22 @@
                 "binary": {
                     "version": 1,
                     "ctx-bins": [
-                        "part1_of_4.bin",
-                        "part2_of_4.bin",
-                        "part3_of_4.bin",
-                        "part4_of_4.bin"
+                        "part1_of_3.bin",
+                        "part2_of_3.bin",
+                        "part3_of_3.bin"
                     ]
+                },
+                "positional-encoding": {
+                    "type": "rope",
+                    "rope-dim": 32,
+                    "rope-theta": 500000,
+                    "rope-scaling": {
+                        "rope-type": "llama3",
+                        "factor": 8.0,
+                        "low-freq-factor": 1.0,
+                        "high-freq-factor": 4.0,
+                        "original-max-position-embeddings": 8192
+                    }
                 }
             }
         }

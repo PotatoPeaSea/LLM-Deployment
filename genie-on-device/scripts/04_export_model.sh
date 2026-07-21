@@ -4,6 +4,13 @@
 # Usage: ./04_export_model.sh <model_id> <chipset> [runtime] [extra export args...]
 #   e.g. ./04_export_model.sh qwen3_4b qualcomm-qcs8550-proxy geniex_qairt
 #
+# NOTE (QCS8550): Qwen3-4B only LOADS on this chip at context length 512.
+# The default 4096 (and 1024) fail on-device at model load with
+# "Could not create context from binary ... err 1002" -- the 4-part model
+# exceeds the DSP memory budget. Pass a short context length:
+#   ./04_export_model.sh qwen3_4b qualcomm-qcs8550-proxy geniex_qairt --context-lengths 512
+# See docs/README.md finding #5 for the full analysis.
+#
 # <chipset> is the "chipset:" attribute value from 03_list_devices.sh, not
 # the human-readable device name (e.g. "qualcomm-qcs8550-proxy", not
 # "QCS8550 (Proxy)").

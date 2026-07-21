@@ -1,0 +1,741 @@
+{
+    "model_id": "llama_v3_2_1b_instruct",
+    "model_name": "Llama-v3.2-1B-Instruct",
+    "runtime": "geniex_qairt",
+    "precision": "w4",
+    "tool_versions": {
+        "qairt": "2.45.0.260326154327"
+    },
+    "model_files": {
+        "part1_of_3.bin": {
+            "inputs": {
+                "input_ids": {
+                    "shape": [
+                        1,
+                        128
+                    ],
+                    "dtype": "int32"
+                }
+            },
+            "outputs": {
+                "embedding": {
+                    "shape": [
+                        1,
+                        128,
+                        2048
+                    ],
+                    "dtype": "float16"
+                }
+            }
+        },
+        "part2_of_3.bin": {
+            "inputs": {
+                "past_key_0_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        384
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_0_in": {
+                    "shape": [
+                        8,
+                        1,
+                        384,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_1_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        384
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_1_in": {
+                    "shape": [
+                        8,
+                        1,
+                        384,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_2_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        384
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_2_in": {
+                    "shape": [
+                        8,
+                        1,
+                        384,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_3_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        384
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_3_in": {
+                    "shape": [
+                        8,
+                        1,
+                        384,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_4_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        384
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_4_in": {
+                    "shape": [
+                        8,
+                        1,
+                        384,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_5_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        384
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_5_in": {
+                    "shape": [
+                        8,
+                        1,
+                        384,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_6_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        384
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_6_in": {
+                    "shape": [
+                        8,
+                        1,
+                        384,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_7_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        384
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_7_in": {
+                    "shape": [
+                        8,
+                        1,
+                        384,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "embedding": {
+                    "shape": [
+                        1,
+                        128,
+                        2048
+                    ],
+                    "dtype": "float16"
+                },
+                "position_ids_cos": {
+                    "shape": [
+                        1,
+                        1,
+                        128,
+                        32
+                    ],
+                    "dtype": "float16"
+                },
+                "position_ids_sin": {
+                    "shape": [
+                        1,
+                        1,
+                        128,
+                        32
+                    ],
+                    "dtype": "float16"
+                },
+                "attention_mask": {
+                    "shape": [
+                        1,
+                        1,
+                        128,
+                        512
+                    ],
+                    "dtype": "float16"
+                }
+            },
+            "outputs": {
+                "add_20905": {
+                    "shape": [
+                        1,
+                        128,
+                        2048
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_0_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        128
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_0_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_1_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        128
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_1_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_2_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        128
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_2_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_3_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        128
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_3_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_4_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        128
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_4_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_5_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        128
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_5_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_6_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        128
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_6_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_7_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        128
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_7_out": {
+                    "shape": [
+                        8,
+                        1,
+                        128,
+                        64
+                    ],
+                    "dtype": "float16"
+                }
+            }
+        },
+        "part3_of_3.bin": {
+            "inputs": {
+                "past_key_8_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        511
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_8_in": {
+                    "shape": [
+                        8,
+                        1,
+                        511,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_9_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        511
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_9_in": {
+                    "shape": [
+                        8,
+                        1,
+                        511,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_10_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        511
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_10_in": {
+                    "shape": [
+                        8,
+                        1,
+                        511,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_11_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        511
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_11_in": {
+                    "shape": [
+                        8,
+                        1,
+                        511,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_12_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        511
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_12_in": {
+                    "shape": [
+                        8,
+                        1,
+                        511,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_13_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        511
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_13_in": {
+                    "shape": [
+                        8,
+                        1,
+                        511,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_14_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        511
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_14_in": {
+                    "shape": [
+                        8,
+                        1,
+                        511,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_15_in": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        511
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_15_in": {
+                    "shape": [
+                        8,
+                        1,
+                        511,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "add_20905": {
+                    "shape": [
+                        1,
+                        1,
+                        2048
+                    ],
+                    "dtype": "float16"
+                },
+                "position_ids_cos": {
+                    "shape": [
+                        1,
+                        1,
+                        1,
+                        32
+                    ],
+                    "dtype": "float16"
+                },
+                "position_ids_sin": {
+                    "shape": [
+                        1,
+                        1,
+                        1,
+                        32
+                    ],
+                    "dtype": "float16"
+                },
+                "attention_mask": {
+                    "shape": [
+                        1,
+                        1,
+                        1,
+                        512
+                    ],
+                    "dtype": "float16"
+                }
+            },
+            "outputs": {
+                "logits": {
+                    "shape": [
+                        1,
+                        1,
+                        128256
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_8_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        1
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_8_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_9_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        1
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_9_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_10_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        1
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_10_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_11_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        1
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_11_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_12_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        1
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_12_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_13_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        1
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_13_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_14_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        1
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_14_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "float16"
+                },
+                "past_key_15_out": {
+                    "shape": [
+                        8,
+                        1,
+                        64,
+                        1
+                    ],
+                    "dtype": "float16"
+                },
+                "past_value_15_out": {
+                    "shape": [
+                        8,
+                        1,
+                        1,
+                        64
+                    ],
+                    "dtype": "float16"
+                }
+            }
+        }
+    },
+    "supplementary_files": {
+        "htp_backend_ext_config.json": "HTP backend configuration for the target device.",
+        "genie_config.json": "Genie SDK configuration for on-device LLM inference.",
+        "sample_prompt.txt": "Sample prompt for on-device inference.",
+        "tokenizer.json": "Tokenizer for encoding/decoding text."
+    },
+    "genie": {
+        "chat_template": {
+            "global_prefix": "<|begin_of_text|>",
+            "system_prefix": "<|start_header_id|>system<|end_header_id|>\n\n",
+            "system_suffix": "<|eot_id|>",
+            "user_prefix": "<|start_header_id|>user<|end_header_id|>\n\n",
+            "user_suffix": "<|eot_id|>",
+            "assistant_prefix": "<|start_header_id|>assistant<|end_header_id|>\n\n",
+            "assistant_suffix": "<|eot_id|>",
+            "default_system_prompt": "You are a helpful AI assistant."
+        },
+        "context_lengths": [
+            512
+        ]
+    },
+    "chipset_attributes": {
+        "aliases": [
+            "qualcomm-qcs8550-proxy",
+            "qualcomm-dragonwing-qcs8550-proxy"
+        ],
+        "marketing_name": "qualcomm-qcs8550-proxy",
+        "world": "IoT",
+        "supports_fp16": true,
+        "htp_version": 73,
+        "soc_model": 43,
+        "reference_device": "QCS8550 (Proxy)",
+        "supports_weight_sharing": true,
+        "name": "qualcomm-qcs8550-proxy"
+    }
+}
