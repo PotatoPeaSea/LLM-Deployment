@@ -17,6 +17,11 @@ which may conflict with other projects on the host.
   commands, and a full "what didn't work + why + fix" section.
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — how the components interact, the data
   flow, and why context length is the memory knob.
+- **[CHATBOT.md](CHATBOT.md)** — the multi-turn chatbot + voice assistant built on
+  top of this (`scripts/07_chatbot.py`): Llama-3.2-1B + Whisper-Base, both on the
+  NPU, ~2s/turn. Also documents why tool calling is built but off by default.
+- **[USAGE.md](USAGE.md)** — how to actually run the chatbot: prerequisites,
+  per-board setup, every flag, in-chat commands, and a troubleshooting table.
 - **`.claude/skills/deploy-genie-llm/SKILL.md`** — condensed reusable runbook for
   applying this to a new model/chip.
 

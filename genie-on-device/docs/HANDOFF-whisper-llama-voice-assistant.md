@@ -550,11 +550,12 @@ could differ from both seen so far.
    **done, §4**: working end-to-end, produces a correct transcript.
 3. ~~Wire Whisper's transcript into Llama's prompt~~ — **done, §7**:
    `scripts/06_voice_assistant.py` is the full press-to-talk loop.
-4. **Skip the ~7s full-bundle redeploy in `ask_llama()` (§7) when the
-   on-device Llama bundle is already current** — push only `prompt.txt` and
-   re-run `genie-t2t-run` directly via `adb shell`, matching the pattern
-   `qnn_device.py`'s decode loop already uses for per-step tensors. Worth
-   doing once turn latency actually matters.
+4. ~~Skip the ~7s full-bundle redeploy in `ask_llama()` (§7)~~ — **done**, in the
+   chatbot rather than here: `scripts/chatbot/llama.py` (`LlamaRuntime`) pushes
+   the bundle once, guarded by an on-device fingerprint marker, then pushes only
+   `prompt.txt` per turn. Measured **~1.6-2.8s/turn** vs ~7s+. `06_voice_assistant.py`
+   is unchanged and still redeploys every turn; use `07_chatbot.py` instead.
+   See [CHATBOT.md](CHATBOT.md).
 5. **VAD / silence detection** — `06_voice_assistant.py` currently needs a
    manual ENTER to stop recording; auto-stop-on-silence (Silero/webrtcvad)
    would make it feel more like a real assistant. Also needed for **chunking

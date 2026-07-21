@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Genie Chat</string>
+    <string name="hint_message">Message</string>
+    <string name="send">Send</string>
+    <string name="stop">Stop</string>
+    <string name="dictate">Dictate</string>
+    <string name="retry">Retry</string>
+    <string name="new_conversation">New conversation</string>
+    <string name="loading_model">Loading Llama-3.2-1B onto the NPU…</string>
+    <string name="model_missing">No model bundle found.\n\nPush one from the host:\n\n  ./scripts/10_push_app_model.sh\n\nExpected at:\n%1$s</string>
+    <string name="model_failed">Could not load the model on the NPU.\n\n%1$s</string>
+</resources>

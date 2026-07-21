@@ -1,0 +1,12 @@
+# Staged from the QAIRT SDK by scripts/09_stage_qairt_for_app.sh -- never committed
+# (vendor binaries, ~30MB, and their headers).
+app/src/main/jniLibs/
+app/src/main/cpp/include/
+
+local.properties
+.gradle/
+build/
+app/build/
+.idea/
+*.iml
+.cxx/
