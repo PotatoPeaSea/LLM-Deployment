@@ -67,7 +67,12 @@ done
 # measured on this board, File.canRead() is false without this even though the
 # group (ext_data_rw) looks like it should be enough. Symptom is the app showing
 # "No model bundle found" for a bundle that is plainly there.
+#
+# Note the parent too: `mkdir -p` creates .../files/models as shell-owned as
+# well, and the app has to be able to traverse and list it to find any bundle
+# at all.
 adb shell "chmod -R a+rX $DEVICE_DIR"
+adb shell "chmod a+rx $(dirname "$DEVICE_DIR")"
 
 # Written last, so an interrupted push is never mistaken for a complete one.
 adb shell "echo $FINGERPRINT > $DEVICE_DIR/.push_fingerprint"

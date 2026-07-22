@@ -2,6 +2,13 @@
 
 **Written:** 2026-07-21. **Source:** [`android/`](../android). **Port of:** [CHATBOT.md](CHATBOT.md).
 
+> **Superseded for day-to-day use** by the React Native app in `app-rn/` —
+> see [ANDROID-RN-APP.md](ANDROID-RN-APP.md) — which adds a second model
+> (Qwen3-4B), multiple chats, and brevity/reasoning toggles over this same
+> C++/JNI layer. This app remains the smaller reference implementation, but it
+> loads bundles straight from external storage and so **cannot load Qwen3-4B**
+> (see that doc's FUSE/SMMU section).
+
 ## What it is
 
 `scripts/07_chatbot.py` as a real Android app. The host disappears entirely:

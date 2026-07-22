@@ -5,15 +5,19 @@
 # they are vendor binaries and headers, so the build is a two-step: stage, then
 # gradle. Re-run this after changing QAIRT versions.
 #
-# Usage: ./scripts/09_stage_qairt_for_app.sh [QAIRT_HOME] [HEX_ARCH]
+# Usage: ./scripts/09_stage_qairt_for_app.sh [APP_DIR] [QAIRT_HOME] [HEX_ARCH]
+#   APP_DIR defaults to app-rn/android (the React Native app). Pass "android"
+#   for the original Kotlin/Views app -- both consume the identical staging.
 set -euo pipefail
 
-QAIRT_HOME="${1:-/mnt/ssd/bryan/AI_SMART/qairt/2.47.0.260601}"
-HEX_ARCH="${2:-v73}"        # QCS8550 / Kalama is Hexagon v73
+APP_DIR="${1:-app-rn/android}"
+QAIRT_HOME="${2:-/mnt/ssd/bryan/AI_SMART/qairt/2.47.0.260601}"
+HEX_ARCH="${3:-v73}"        # QCS8550 / Kalama is Hexagon v73
 HEX_UPPER="$(echo "$HEX_ARCH" | tr '[:lower:]' '[:upper:]')"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_MAIN="$REPO_ROOT/android/app/src/main"
+APP_MAIN="$REPO_ROOT/$APP_DIR/app/src/main"
+[ -d "$APP_MAIN" ] || { echo "No such app dir: $APP_MAIN" >&2; exit 1; }
 JNILIBS="$APP_MAIN/jniLibs/arm64-v8a"
 INCLUDE="$APP_MAIN/cpp/include"
 
@@ -33,7 +37,7 @@ HOST_LIBS=(
 # ADSP_LIBRARY_PATH must point at the app's nativeLibraryDir at runtime.
 DSP_LIB="$QAIRT_HOME/lib/hexagon-$HEX_ARCH/unsigned/libQnnHtp${HEX_UPPER}Skel.so"
 
-echo "[stage] QAIRT_HOME=$QAIRT_HOME hex=$HEX_ARCH"
+echo "[stage] app=$APP_DIR QAIRT_HOME=$QAIRT_HOME hex=$HEX_ARCH"
 [ -d "$QAIRT_HOME" ] || { echo "No such QAIRT_HOME: $QAIRT_HOME" >&2; exit 1; }
 
 rm -rf "$JNILIBS" "$INCLUDE"
