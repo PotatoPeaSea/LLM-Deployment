@@ -1,7 +1,17 @@
 import React, {useState} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import {radius, space, useTheme} from '../theme';
 import type {Message} from '../store';
+
+/** Tool name → what to call it in the "used X" line under a reply. */
+const TOOL_LABELS: Record<string, string> = {
+  web_search: 'web search',
+  search_contacts: 'contacts',
+  query_calendar: 'calendar',
+  get_battery: 'battery',
+  get_datetime: 'clock',
+  get_device_info: 'device info',
+};
 
 /**
  * One turn. The assistant's reasoning, when there is any, sits above the answer
@@ -39,6 +49,20 @@ export function Bubble({
         </View>
       )}
 
+      {!!message.images?.length && (
+        <View style={styles.images}>
+          {message.images.map(path => (
+            <Image
+              key={path}
+              // The picker wrote a real file, so a file:// URI is all Image
+              // needs — no permission and no content resolver involved.
+              source={{uri: `file://${path}`}}
+              style={[styles.image, {borderColor: t.border}]}
+            />
+          ))}
+        </View>
+      )}
+
       <View
         style={[
           styles.bubble,
@@ -53,9 +77,20 @@ export function Bubble({
         </Text>
       </View>
 
-      {!isUser && message.elapsedMs != null && (
+      {!isUser && (message.elapsedMs != null || !!message.toolsUsed?.length) && (
         <Text style={[styles.meta, {color: t.textFaint}]}>
-          {(message.elapsedMs / 1000).toFixed(1)}s
+          {[
+            message.elapsedMs != null
+              ? `${(message.elapsedMs / 1000).toFixed(1)}s`
+              : null,
+            message.toolsUsed?.length
+              ? `used ${[...new Set(message.toolsUsed)]
+                  .map(name => TOOL_LABELS[name] ?? name)
+                  .join(', ')}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </Text>
       )}
     </View>
@@ -72,6 +107,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
   },
   text: {fontSize: 15.5, lineHeight: 22},
+  images: {flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginBottom: space.xs},
+  image: {
+    width: 132,
+    height: 132,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    resizeMode: 'cover',
+  },
   thoughtsToggle: {
     paddingVertical: space.xs,
     paddingHorizontal: space.sm,

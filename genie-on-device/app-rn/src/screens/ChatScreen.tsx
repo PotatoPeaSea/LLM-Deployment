@@ -13,7 +13,13 @@ import {Bubble} from '../components/Bubble';
 import {Composer} from '../components/Composer';
 import {Sheet, ToggleRow} from '../components/Sheet';
 import {space, useTheme} from '../theme';
-import {generate, loadModel, stop, type ModelInfo} from '../genie';
+import {
+  generate,
+  loadModel,
+  requestToolPermissions,
+  stop,
+  type ModelInfo,
+} from '../genie';
 import {deriveTitle, newId, toWire, type Chat, type Message, type Settings} from '../store';
 
 type LoadState =
@@ -43,9 +49,18 @@ export function ChatScreen({
   const [sheet, setSheet] = useState(false);
   const [ctx, setCtx] = useState<{used: number; total: number} | null>(null);
   const [capped, setCapped] = useState(false);
+  const [toolStatus, setToolStatus] = useState('');
   const listRef = useRef<FlatList<Message>>(null);
 
   const model = models.find(m => m.id === chat.modelId);
+
+  // Ask once per chat, before the first turn. Doing it here rather than when a
+  // tool fires keeps the permission dialog out of the middle of a generation.
+  useEffect(() => {
+    if (model?.supportsTools) {
+      void requestToolPermissions();
+    }
+  }, [model?.supportsTools]);
 
   // A chat is pinned to its model, so opening one may swap what is resident on
   // the NPU. loadModel no-ops when it is already the loaded model.
@@ -74,20 +89,29 @@ export function ChatScreen({
   }, [chat.modelId]);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, imagePaths: string[] = []) => {
       const history = chat.messages;
-      const userMessage: Message = {id: newId(), role: 'user', content: text};
+      const userMessage: Message = {
+        id: newId(),
+        role: 'user',
+        content: text,
+        images: imagePaths.length ? imagePaths : undefined,
+      };
       const draft: Message = {id: newId(), role: 'assistant', content: ''};
 
       let working: Chat = {
         ...chat,
-        title: history.length === 0 ? deriveTitle(text) : chat.title,
+        title:
+          history.length === 0
+            ? deriveTitle(text || 'Image')
+            : chat.title,
         messages: [...history, userMessage, draft],
         updatedAt: Date.now(),
       };
       onChange(working);
       setBusy(true);
       setCapped(false);
+      setToolStatus('');
 
       const patchDraft = (patch: Partial<Message>) => {
         working = {
@@ -109,16 +133,20 @@ export function ChatScreen({
             // cache has to be rebuilt, but it must always be accurate.
             history: toWire(history),
             text,
+            imagePaths,
             brevity: settings.brevity,
             thinking: settings.thinking,
           },
-          progress =>
-            patchDraft({content: progress.answer, thoughts: progress.thoughts || undefined}),
+          progress => {
+            setToolStatus(progress.status ?? '');
+            patchDraft({content: progress.answer, thoughts: progress.thoughts || undefined});
+          },
         );
         patchDraft({
           content: result.answer,
           thoughts: result.thoughts || undefined,
           elapsedMs: result.elapsedMs,
+          toolsUsed: result.toolsUsed?.length ? result.toolsUsed : undefined,
         });
         setCtx({used: result.contextUsed, total: result.contextLength});
         setCapped(result.capped);
@@ -126,6 +154,7 @@ export function ChatScreen({
         patchDraft({content: `⚠︎ ${e?.message ?? e}`});
       } finally {
         setBusy(false);
+        setToolStatus('');
       }
     },
     [chat, onChange, settings.brevity, settings.thinking],
@@ -139,11 +168,17 @@ export function ChatScreen({
       : load.kind === 'error'
       ? load.message
       : busy
-      ? 'Generating…'
+      ? toolStatus || 'Generating…'
       : ctx
-      ? `${model?.name ?? chat.modelId} · context ${ctx.used}/${ctx.total}` +
-        (capped ? ' · reply stopped at the length limit' : '') +
-        (ctx.used / ctx.total > 0.75 ? ' · older turns will be trimmed soon' : '')
+      ? // The GGUF runtime does not report occupancy (its window is large
+        // enough that the trimming arithmetic never runs), so it shows the
+        // window alone rather than a misleading "0/164000".
+        `${model?.name ?? chat.modelId} · ` +
+        (ctx.used > 0
+          ? `context ${ctx.used}/${ctx.total}` +
+            (ctx.used / ctx.total > 0.75 ? ' · older turns will be trimmed soon' : '')
+          : `${ctx.total.toLocaleString()} ctx`) +
+        (capped ? ' · reply stopped at the length limit' : '')
       : `${model?.name ?? chat.modelId} · ${load.contextLength} ctx · loaded in ${(
           load.loadMs / 1000
         ).toFixed(1)}s`;
@@ -192,6 +227,7 @@ export function ChatScreen({
       <Composer
         busy={busy}
         disabled={load.kind !== 'ready'}
+        canAttach={!!model?.supportsImages}
         onSend={send}
         onStop={stop}
       />

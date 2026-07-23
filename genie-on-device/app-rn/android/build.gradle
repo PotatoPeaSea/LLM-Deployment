@@ -1,7 +1,10 @@
 buildscript {
     ext {
         buildToolsVersion = "34.0.0"
-        minSdkVersion = 23
+        // 27, not 23, because the GenieX SDK (com.qualcomm.qti:geniex-android)
+        // requires it. No loss here: the target is a QCS8550 devkit on
+        // Android 13, and the QAIRT runtime never supported Android 6-7 anyway.
+        minSdkVersion = 27
         compileSdkVersion = 34
         targetSdkVersion = 34
         ndkVersion = "26.1.10909125"

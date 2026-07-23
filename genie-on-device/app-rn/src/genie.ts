@@ -8,7 +8,7 @@
  */
 import {NativeEventEmitter, NativeModules} from 'react-native';
 
-const {Genie} = NativeModules;
+const {Genie, ImagePicker} = NativeModules;
 
 if (!Genie) {
   throw new Error(
@@ -24,6 +24,12 @@ export type ModelInfo = {
   name: string;
   note: string;
   supportsReasoning: boolean;
+  /** VLM: the composer offers an attach button for these. */
+  supportsImages: boolean;
+  /** Can call the on-device tools (contacts, calendar, battery, web…). */
+  supportsTools: boolean;
+  /** 'GENIE' (QNN context binaries) or 'GENIEX' (GGUF via llama.cpp). */
+  runtime: 'GENIE' | 'GENIEX';
   installed: boolean;
   path: string;
 };
@@ -36,6 +42,12 @@ export type Progress = {
   answer: string;
   thoughts: string;
   hasThoughts: boolean;
+  /**
+   * What the model is doing between generations — "Searching the web…".
+   * Out of band on purpose: a tool round trip produces no tokens, so without
+   * this the UI would sit silent for seconds mid-turn.
+   */
+  status?: string;
 };
 
 export type GenerateResult = Progress & {
@@ -45,6 +57,8 @@ export type GenerateResult = Progress & {
   contextLength: number;
   /** The reply stopped at the token ceiling rather than at end-of-sequence. */
   capped: boolean;
+  /** Names of any tools the model called while answering. */
+  toolsUsed: string[];
 };
 
 export const listModels = (): Promise<ModelInfo[]> => Genie.listModels();
@@ -74,6 +88,23 @@ export const stop = (): Promise<void> => Genie.stop();
 export const resetConversation = (): Promise<void> => Genie.resetConversation();
 
 /**
+ * Ask for the contacts/calendar permissions the tools need.
+ *
+ * Called when a tool-capable chat opens, not when a tool fires: a permission
+ * dialog appearing mid-generation would interrupt the reply. Resolves either
+ * way — a refusal just means those tools report back that they were denied.
+ */
+export const requestToolPermissions = (): Promise<void> =>
+  Genie.requestToolPermissions();
+
+/**
+ * Open the system picker and return an absolute path to a copy of the chosen
+ * image, or null if the user backed out. Requires no storage permission.
+ */
+export const pickImage = (): Promise<string | null> =>
+  ImagePicker ? ImagePicker.pickImage() : Promise.resolve(null);
+
+/**
  * One turn. `history` is everything before this turn, oldest first — native
  * only reads it when the KV cache has to be rebuilt, but it must always be
  * accurate, because that rebuild can happen on any turn.
@@ -84,6 +115,8 @@ export function generate(
     modelId: string;
     history: WireMessage[];
     text: string;
+    /** Absolute paths from `pickImage`. Only a VLM model looks at these. */
+    imagePaths?: string[];
     brevity: boolean;
     thinking: boolean;
   },
@@ -101,6 +134,7 @@ export function generate(
         answer: event.answer,
         thoughts: event.thoughts,
         hasThoughts: event.hasThoughts,
+        status: event.status,
       });
     },
   );
@@ -110,6 +144,7 @@ export function generate(
     args.modelId,
     args.history,
     args.text,
+    args.imagePaths ?? [],
     args.brevity,
     args.thinking,
   ).finally(() => subscription.remove());

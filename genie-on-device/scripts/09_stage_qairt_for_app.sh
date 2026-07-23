@@ -30,6 +30,16 @@ HOST_LIBS=(
   libQnnHtp.so
   "libQnnHtp${HEX_UPPER}Stub.so"
   libQnnSystem.so
+  # The HTP backend-extensions library. genie_config.json's
+  # engine.backend.extensions points at htp_backend_ext_config.json, and Genie
+  # dlopens THIS lib by name to apply it (soc_model/dsp_arch/weight-sharing).
+  # It MUST come from the same QAIRT as libGenie.so: the geniex-android AAR
+  # bundles its own, newer-QAIRT copy of this exact filename, and if ours is
+  # absent that mismatched one lands in the APK and SIGSEGVs inside
+  # libQnnHtpNetRunExtensions.so during GenieDialog_create (fault addr 0x18,
+  # right after QnnBackend_create succeeds). Staging our matching copy plus the
+  # pickFirst in app/build.gradle keeps the QAIRT set internally consistent.
+  libQnnHtpNetRunExtensions.so
 )
 
 # The Hexagon-side skel. It is an aarch64-hosted file only in the sense that we

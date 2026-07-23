@@ -21,6 +21,16 @@ export type Message = {
   /** Qwen3 reasoning, kept out of `content` so it never re-enters the prompt. */
   thoughts?: string;
   elapsedMs?: number;
+  /**
+   * Absolute paths of images attached to a user turn.
+   *
+   * Only the turn they were sent on carries them: re-sending every past image
+   * on every rebuild would re-encode each one through the vision projector, and
+   * the model has already described them in the transcript.
+   */
+  images?: string[];
+  /** Tools the model called for this reply, for the "used web_search" note. */
+  toolsUsed?: string[];
 };
 
 export type Chat = {
