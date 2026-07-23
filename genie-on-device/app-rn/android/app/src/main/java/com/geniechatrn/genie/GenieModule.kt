@@ -1,5 +1,6 @@
 package com.geniechatrn.genie
 
+import android.util.Log
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -28,6 +29,13 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 private const val TOOL_PERMISSION_REQUEST = 0x9102
 
+/**
+ * How long to let the DSP settle after unloading one runtime before loading the
+ * other. The cDSP tears down a runtime's HTP session asynchronously, so the
+ * incoming runtime can race the outgoing one for the device -- see [GenieModule.switchTo].
+ */
+private const val SWITCH_SETTLE_MS = 700L
+
 class GenieModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
@@ -47,11 +55,29 @@ class GenieModule(reactContext: ReactApplicationContext) :
     /**
      * Unload whichever runtime is NOT about to be used. Cheap when it is
      * already unloaded, which is the common case.
+     *
+     * When it does unload one, it then pauses [SWITCH_SETTLE_MS]. Both runtimes
+     * reach the NPU through the same cDSP, which releases an HTP session
+     * asynchronously after `close()` returns. If the incoming runtime creates
+     * its HTP device before that teardown lands, the create races it: GenieX's
+     * llama.cpp HTP0 create fails with `-100201`, or the load stalls hard enough
+     * that lowmemorykiller reaps the process ("device is not responding"). The
+     * pause fires only on a real switch, so a same-runtime reopen pays nothing;
+     * [GenieXEngine.ensureModel] additionally retries if a create still slips
+     * through the window.
      */
     private fun switchTo(runtime: Runtime) {
-        when (runtime) {
-            Runtime.GENIE -> genieX.close()
-            Runtime.GENIEX -> engine.close()
+        val unloaded = when (runtime) {
+            Runtime.GENIE -> (genieX.currentModelId != null).also { genieX.close() }
+            Runtime.GENIEX -> (engine.currentModelId != null).also { engine.close() }
+        }
+        if (unloaded) {
+            Log.i("GenieModule", "runtime switch: settling ${SWITCH_SETTLE_MS}ms for DSP release")
+            try {
+                Thread.sleep(SWITCH_SETTLE_MS)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
         }
     }
 

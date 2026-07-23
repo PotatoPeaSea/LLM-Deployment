@@ -59,6 +59,21 @@ class GenieXEngine(private val context: Context) {
          * follows is not glued to it.
          */
         private const val MEDIA_MARKER = "<__media__>\n"
+
+        /**
+         * Create attempts when loading a model. The first load after switching
+         * away from the QNN runtime can lose a race for the DSP: the QNN model's
+         * HTP session is still tearing down (async) when llama.cpp tries to
+         * create its own HTP0 device, and the build fails with `-100201`
+         * (`load_all_data: device HTP0 does not support async...`). GenieModule
+         * already pauses after the unload; this is the backstop for when that
+         * pause was not quite enough. A fresh load succeeds on the first try and
+         * never sleeps.
+         */
+        private const val CREATE_ATTEMPTS = 3
+
+        /** Extra DSP-settle between failed create attempts (see [CREATE_ATTEMPTS]). */
+        private const val CREATE_SETTLE_MS = 900L
     }
 
     private var wrapper: VlmWrapper? = null
@@ -149,15 +164,43 @@ class GenieXEngine(private val context: Context) {
             spec.computeUnit,
         )
 
-        val built = runBlocking {
-            VlmWrapper.builder().vlmCreateInput(input).build().getOrThrow()
-        }
+        val built = createWithRetry(input)
         wrapper = built
         loadedModelId = modelId
         primedChatId = null
         visionReady = mmproj != null && probeVision(built)
         Log.i(TAG, "loaded $modelId on ${spec.computeUnit} (ctx $contextLength) " +
             "in ${System.currentTimeMillis() - t0}ms, mmproj=${mmproj != null}, visionReady=$visionReady")
+    }
+
+    /**
+     * Build the wrapper, retrying the transient DSP-contention failure that can
+     * follow a runtime switch (see [CREATE_ATTEMPTS]). The first attempt runs
+     * immediately; only a failure pays the settle, so a fresh load is unaffected.
+     * A `-100201` here means the outgoing runtime's HTP session had not finished
+     * releasing -- closing anything half-built and pausing lets the DSP catch up.
+     */
+    private fun createWithRetry(input: VlmCreateInput): VlmWrapper {
+        var lastError: Throwable? = null
+        for (attempt in 1..CREATE_ATTEMPTS) {
+            if (attempt > 1) {
+                runCatching { wrapper?.close() }
+                wrapper = null
+                System.gc()
+                Log.w(TAG, "VLM create failed (attempt ${attempt - 1}/$CREATE_ATTEMPTS), " +
+                    "settling ${CREATE_SETTLE_MS}ms then retrying", lastError)
+                try {
+                    Thread.sleep(CREATE_SETTLE_MS)
+                } catch (e: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    break
+                }
+            }
+            val result = runBlocking { VlmWrapper.builder().vlmCreateInput(input).build() }
+            result.getOrNull()?.let { return it }
+            lastError = result.exceptionOrNull()
+        }
+        throw lastError ?: IllegalStateException("VLM create failed with no error")
     }
 
     /**
