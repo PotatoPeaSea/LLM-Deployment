@@ -122,16 +122,15 @@ adb shell "logcat -d" | grep -iE "visionReady|mtmd|clip|media marker|LlamaVlm"
 | GenieX 2B text + tools | ✅ works (fresh load; battery tool returned real data earlier) |
 | GenieX 2B loads at 164K ctx | ✅ reliable from a clean start (~9.5s, ~2GB peak, not an OOM) |
 | Runtime-switch DSP race | ✅ **fix verified on device** — QNN→2B now loads (settle log fires, no `-100201`, no kill) where it reliably failed before |
-| GenieX 2B **text generation** | 🔴 **BLOCKER (pre-existing, re-confirmed live 2026-07-23)** — SIGSEGV `fault addr 0x0` right after `Tokenized ... into ~766 tokens` in `vlm.cpp _ml_vlm_generate_internal` (the handoff's original `LlamaVlm::generate` crash). Happens on a **fresh** load too, so it is NOT the switch and NOT the QAIRT/switch fixes. Turn had tools on (~3.3K-char / 766-token prompt). **Must be solved before vision is even testable — the 2B cannot produce a text turn right now.** |
+| GenieX 2B **text generation** | 🔴 **BLOCKER (pre-existing, root-caused 2026-07-23)** — SIGSEGV `fault addr 0x0` right after `Tokenized ... into ~755 tokens` in `vlm.cpp _ml_vlm_generate_internal`. Reproduces on a **clean-booted** board and on a **fresh** load, so it is NOT board state, NOT the switch, NOT the QAIRT/switch fixes. **Likely cause: prompt > ubatch.** Load reserves the HTP graph for `ubatch n_tokens = 512` (see `graph_reserve` log), but the tool-schema-laden prompt is ~755 tokens — the plugin appears not to split a prompt longer than the reserved ubatch and overruns. **Must be solved before vision is testable.** |
 | Vision (image inference) | ❌ the eventual goal — blocked by clip.cpp qwen3vl_merger (above), AND gated behind the generate crash |
 
-### ⚠️ Post-reboot slow loads (device state, not code)
-After the board rebooted this session, EVERY 2B load takes ~56–61s (fresh and
-switched alike); before the reboot a fresh load was ~9.5s. The ~55s is spent in
-`graph_reserve` on HTP0. This is a degraded-DSP/board state, not the switch or
-any code change — suspect a wedged HTP after the crash-reboot. A clean
-`adb reboot` (or power cycle) is the first thing to try; re-measure a fresh 2B
-load and re-test generate before assuming the generate crash is purely software.
+### 2B load time: ~9.5s (warm) vs ~56s (cold HTP graph)
+A fresh 2B load is ~56s when the HTP graph cache is cold and ~9.5s when warm.
+The ~50s is `graph_reserve` for the `n_tokens=512` prompt graph at 164K ctx. A
+clean `adb reboot` was tried this session and did NOT change it (still 56s cold),
+so this is normal cold-cache behaviour, not a wedged board — the cache warms
+after the first post-boot load. Not a bug; just budget for it in tests.
 
 ### The runtime-switch fix (implemented + verified on device 2026-07-23)
 Verified: after the fix, a QNN→2B switch logs `runtime switch: settling 700ms`
