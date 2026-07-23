@@ -121,10 +121,25 @@ adb shell "logcat -d" | grep -iE "visionReady|mtmd|clip|media marker|LlamaVlm"
 | QNN NPU crash (QAIRT lib mismatch) | ✅ fixed + committed `49fccb5`, verified on device (Llama 3.2 3B on NPU) |
 | GenieX 2B text + tools | ✅ works (fresh load; battery tool returned real data earlier) |
 | GenieX 2B loads at 164K ctx | ✅ reliable from a clean start (~9.5s, ~2GB peak, not an OOM) |
-| Runtime-switch DSP race | ✅ **fix implemented + builds**, ⚠️ **on-device verification PENDING** (board rebooted mid-test) |
-| Vision (image inference) | ❌ **the goal** — blocked by clip.cpp qwen3vl_merger, see above |
+| Runtime-switch DSP race | ✅ **fix verified on device** — QNN→2B now loads (settle log fires, no `-100201`, no kill) where it reliably failed before |
+| GenieX 2B **text generation** | 🔴 **BLOCKER (pre-existing, re-confirmed live 2026-07-23)** — SIGSEGV `fault addr 0x0` right after `Tokenized ... into ~766 tokens` in `vlm.cpp _ml_vlm_generate_internal` (the handoff's original `LlamaVlm::generate` crash). Happens on a **fresh** load too, so it is NOT the switch and NOT the QAIRT/switch fixes. Turn had tools on (~3.3K-char / 766-token prompt). **Must be solved before vision is even testable — the 2B cannot produce a text turn right now.** |
+| Vision (image inference) | ❌ the eventual goal — blocked by clip.cpp qwen3vl_merger (above), AND gated behind the generate crash |
 
-### The runtime-switch fix (implemented this session, NOT yet device-verified)
+### ⚠️ Post-reboot slow loads (device state, not code)
+After the board rebooted this session, EVERY 2B load takes ~56–61s (fresh and
+switched alike); before the reboot a fresh load was ~9.5s. The ~55s is spent in
+`graph_reserve` on HTP0. This is a degraded-DSP/board state, not the switch or
+any code change — suspect a wedged HTP after the crash-reboot. A clean
+`adb reboot` (or power cycle) is the first thing to try; re-measure a fresh 2B
+load and re-test generate before assuming the generate crash is purely software.
+
+### The runtime-switch fix (implemented + verified on device 2026-07-23)
+Verified: after the fix, a QNN→2B switch logs `runtime switch: settling 700ms`
+and the 2B loads successfully (no `-100201`, no LMKD kill) — 2/2, where the
+switch reliably failed before. The `createWithRetry` backstop was in place but
+did not need to fire (the settle alone was enough). Caveat: could not show
+switch→generate end-to-end because of the separate generate SIGSEGV above.
+
 Root cause: switching QNN model → GenieX 2B failed on the first try (either an
 LMKD "device is not responding" kill, or `GenieXSdk create() failed -100201` at
 HTP0), because the cDSP tears down the outgoing runtime's HTP session
