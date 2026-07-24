@@ -3,20 +3,19 @@ package com.geniechatrn.genie
 import android.content.Context
 import android.util.Log
 import com.geniex.sdk.GenieXSdk
-import com.geniex.sdk.VlmWrapper
+import com.geniex.sdk.LlmWrapper
+import com.geniex.sdk.bean.ChatMessage
 import com.geniex.sdk.bean.GenerationConfig
+import com.geniex.sdk.bean.LlmCreateInput
 import com.geniex.sdk.bean.LlmStreamResult
 import com.geniex.sdk.bean.ModelConfig
-import com.geniex.sdk.bean.VlmChatMessage
-import com.geniex.sdk.bean.VlmContent
-import com.geniex.sdk.bean.VlmCreateInput
 import kotlinx.coroutines.runBlocking
 
 /**
  * The GGUF half of the app: Qwen3.5-2B on the NPU through GenieX's llama.cpp
  * runtime.
  *
- * Three things make this genuinely different from [ChatEngine], not just a
+ * Two things make this genuinely different from [ChatEngine], not just a
  * second copy of it:
  *
  * 1. The SDK owns the prompt. `applyChatTemplate` renders the model's real
@@ -28,12 +27,20 @@ import kotlinx.coroutines.runBlocking
  *    prefills the tail, so passing the full transcript costs the same as an
  *    incremental turn while being far harder to get wrong. The cache is reset
  *    only when the chat changes.
- * 3. It can call tools and see images. Neither is an SDK feature -- see
- *    [Tools] for the tool-call protocol and the loop in [generate].
  *
  * The 164K window means the context arithmetic ChatEngine needs (trimming,
  * re-priming, reserve-for-reply) is simply not required: a conversation would
  * have to run to roughly half a million characters before it mattered.
+ *
+ * **Text only, deliberately (see HANDOFF-qwen-text-164k.md).** GenieX ships a
+ * second, VLM-capable API (`VlmWrapper`/`LlamaVlm::generate`) for image
+ * attachment. That path's `generate()` SIGSEGVs unconditionally on this
+ * device/plugin build -- fault addr 0x0, right after tokenization, on every
+ * input tried (prompt, nCtx, compute unit, AAR version, KV-cache reset timing,
+ * sampler config -- all ruled out). The plain text `LlmWrapper`/`Llm::generate`
+ * used here does not share that bug and streams normally. So images are not
+ * supported right now; wiring them back in means routing through VlmWrapper
+ * again, which reintroduces the crash.
  */
 class GenieXEngine(private val context: Context) {
 
@@ -53,14 +60,6 @@ class GenieXEngine(private val context: Context) {
         private const val MAX_NEW_TOKENS = 1024
 
         /**
-         * libmtmd's media placeholder. One per attached image must appear in
-         * the prompt text; the plugin swaps each for the model's real vision
-         * tokens at generate time. Trailing newline so the question that
-         * follows is not glued to it.
-         */
-        private const val MEDIA_MARKER = "<__media__>\n"
-
-        /**
          * Create attempts when loading a model. The first load after switching
          * away from the QNN runtime can lose a race for the DSP: the QNN model's
          * HTP session is still tearing down (async) when llama.cpp tries to
@@ -76,24 +75,10 @@ class GenieXEngine(private val context: Context) {
         private const val CREATE_SETTLE_MS = 900L
     }
 
-    private var wrapper: VlmWrapper? = null
+    private var wrapper: LlmWrapper? = null
     private var loadedModelId: String? = null
     private var primedChatId: String? = null
     private var sdkReady = false
-
-    /**
-     * Whether the loaded model can actually see images.
-     *
-     * NOT the same as [ModelSpec.supportsImages]: that says the model is a VLM
-     * and we shipped an mmproj; this says the mmproj actually LOADED. A projector
-     * GGUF that clip.cpp can't parse (observed: the community Qwen3.5 mmproj vs
-     * GenieX 0.3.12's clip fails with "failed to seek for tensor mm.2.bias")
-     * leaves the model text-only -- and sending it an image then segfaults the
-     * native side, because the prompt carries a media marker with no bitmap
-     * behind it. So this gate is what stands between a bad mmproj and a crash.
-     */
-    var visionReady: Boolean = false
-        private set
 
     /**
      * Bring the SDK up, and wait for it.
@@ -150,27 +135,20 @@ class GenieXEngine(private val context: Context) {
         val t0 = System.currentTimeMillis()
         contextLength = spec.declaredContextLength
 
-        // A VlmWrapper is used even for text-only chats. It is a superset of
-        // LlmWrapper -- a message whose contents are all "text" behaves
-        // identically -- and choosing per-turn would mean unloading and
-        // reloading 1.15GB the first time the user attaches a photo.
-        val mmproj = spec.mmprojFile?.let { java.io.File(bundle, it) }?.takeIf { it.isFile }
-        val input = VlmCreateInput(
+        val input = LlmCreateInput(
             spec.displayName,
             gguf.absolutePath,
-            mmproj?.absolutePath.orEmpty(),
+            "", // tokenizer_path -- embedded in the GGUF, nothing separate to point at
             ModelConfig().apply { nCtx = contextLength },
             "llama_cpp",
             spec.computeUnit,
         )
 
-        val built = createWithRetry(input)
-        wrapper = built
+        wrapper = createWithRetry(input)
         loadedModelId = modelId
         primedChatId = null
-        visionReady = mmproj != null && probeVision(built)
         Log.i(TAG, "loaded $modelId on ${spec.computeUnit} (ctx $contextLength) " +
-            "in ${System.currentTimeMillis() - t0}ms, mmproj=${mmproj != null}, visionReady=$visionReady")
+            "in ${System.currentTimeMillis() - t0}ms")
     }
 
     /**
@@ -180,14 +158,14 @@ class GenieXEngine(private val context: Context) {
      * A `-100201` here means the outgoing runtime's HTP session had not finished
      * releasing -- closing anything half-built and pausing lets the DSP catch up.
      */
-    private fun createWithRetry(input: VlmCreateInput): VlmWrapper {
+    private fun createWithRetry(input: LlmCreateInput): LlmWrapper {
         var lastError: Throwable? = null
         for (attempt in 1..CREATE_ATTEMPTS) {
             if (attempt > 1) {
                 runCatching { wrapper?.close() }
                 wrapper = null
                 System.gc()
-                Log.w(TAG, "VLM create failed (attempt ${attempt - 1}/$CREATE_ATTEMPTS), " +
+                Log.w(TAG, "LLM create failed (attempt ${attempt - 1}/$CREATE_ATTEMPTS), " +
                     "settling ${CREATE_SETTLE_MS}ms then retrying", lastError)
                 try {
                     Thread.sleep(CREATE_SETTLE_MS)
@@ -196,36 +174,11 @@ class GenieXEngine(private val context: Context) {
                     break
                 }
             }
-            val result = runBlocking { VlmWrapper.builder().vlmCreateInput(input).build() }
+            val result = runBlocking { LlmWrapper.builder().llmCreateInput(input).build() }
             result.getOrNull()?.let { return it }
             lastError = result.exceptionOrNull()
         }
-        throw lastError ?: IllegalStateException("VLM create failed with no error")
-    }
-
-    /**
-     * Ask the native VLM whether its vision path is live.
-     *
-     * `build()` succeeds even when the projector fails to load -- the model is
-     * simply text-only afterwards -- so this is the only way to know before we
-     * hand it an image. The capability lives on the internal `Vlm` handle that
-     * `VlmWrapper` keeps private, so it is reached reflectively; any failure is
-     * treated as "no vision", which is the safe default (worst case: images are
-     * refused for a model that could actually see, never a crash).
-     */
-    private fun probeVision(w: VlmWrapper): Boolean = runCatching {
-        val vlmField = w.javaClass.getDeclaredField("vlm").apply { isAccessible = true }
-        val handleField = w.javaClass.getDeclaredField("handle").apply { isAccessible = true }
-        val vlm = vlmField.get(w)
-        val handle = handleField.getLong(w)
-        val caps = vlm.javaClass
-            .getMethod("getCapabilities", Long::class.javaPrimitiveType)
-            .invoke(vlm, handle)
-        val supportsVision = caps?.javaClass?.getMethod("getSupportsVision")?.invoke(caps) as? Boolean
-        supportsVision == true
-    }.getOrElse {
-        Log.w(TAG, "vision capability probe failed, assuming text-only", it)
-        false
+        throw lastError ?: IllegalStateException("LLM create failed with no error")
     }
 
     /**
@@ -235,6 +188,9 @@ class GenieXEngine(private val context: Context) {
      * [onStatus] reports what the model is doing between generations ("Searching
      * the web…"). Without it a tool-using turn looks frozen for ten seconds,
      * because nothing is streamed while a tool runs.
+     *
+     * Images are not supported -- see the class doc -- so [imagePaths] is
+     * always declined with an explanatory note rather than passed through.
      */
     fun generate(
         chatId: String,
@@ -251,18 +207,9 @@ class GenieXEngine(private val context: Context) {
         val active = requireNotNull(wrapper) { "model not loaded" }
         val spec = ModelStore.spec(modelId)
 
-        // Never hand an image to a model whose projector didn't load -- that is
-        // the native segfault. Drop the images and say so, rather than pretend
-        // to have looked or crash the app.
-        val images = if (imagePaths.isNotEmpty() && !visionReady) {
-            Log.w(TAG, "dropping ${imagePaths.size} image(s): vision not available on $modelId")
-            emptyList()
-        } else {
-            imagePaths
-        }
-        if (imagePaths.isNotEmpty() && !visionReady) {
-            val note = "This model's vision component could not be loaded on this " +
-                "device, so I can't see the attached image. I can still answer text questions."
+        if (imagePaths.isNotEmpty()) {
+            val note = "Image attachments aren't supported on this model right now " +
+                "-- I can still answer text questions."
             sink.onToken(note)
             lastToolsUsed = emptyList()
             return note
@@ -277,19 +224,14 @@ class GenieXEngine(private val context: Context) {
         }
 
         val system = spec.systemPrompt + if (brevity) spec.brevityClause else ""
-        val messages = mutableListOf<VlmChatMessage>()
-        messages.add(textMessage("system", system))
+        val messages = mutableListOf<ChatMessage>()
+        messages.add(ChatMessage("system", system))
         for (message in history) {
-            messages.add(textMessage(message.role.wire, message.content))
+            messages.add(ChatMessage(message.role.wire, message.content))
         }
-        messages.add(userMessage(userText, images))
+        messages.add(ChatMessage("user", userText))
 
-        // Tools are offered on text turns only. A vision question rarely needs
-        // one, and keeping the image out of the tool loop means it is encoded
-        // through the projector exactly once -- re-rendering a prompt that still
-        // holds the media marker on a second iteration is asking for the
-        // marker/bitmap mismatch that crashes the plugin.
-        val toolsJson = if (spec.supportsTools && images.isEmpty()) Tools.schemaJson() else null
+        val toolsJson = if (spec.supportsTools) Tools.schemaJson() else null
         val used = mutableListOf<String>()
         var visible = ""
 
@@ -322,7 +264,7 @@ class GenieXEngine(private val context: Context) {
             // Keep the model's own tool-call turn in the transcript: Qwen's
             // template pairs each tool result with the call that asked for it,
             // and omitting it makes the results look unmotivated.
-            messages.add(textMessage("assistant", reply))
+            messages.add(ChatMessage("assistant", reply))
             visible = Tools.stripCalls(reply).trim()
 
             for (call in calls) {
@@ -330,7 +272,15 @@ class GenieXEngine(private val context: Context) {
                 val result = execute(call)
                 used.add(call.name)
                 Log.i(TAG, "tool ${call.name}(${call.arguments}) -> ${result.take(120)}")
-                messages.add(textMessage("tool", result))
+                // The GGUF's chat template dispatches on role=="tool" using
+                // loop.previtem/loop.nextitem -- Jinja2 loop extensions the
+                // llama.cpp minja engine doesn't fully support, which aborts
+                // the whole process (uncaught C++ exception, not catchable
+                // from Kotlin). The SAME template's own multi-step-tool scan
+                // (search "multi_step_tool" in the template) expects tool
+                // results as a "user" turn wrapped in <tool_response>, so use
+                // that form instead -- it only touches the plain user branch.
+                messages.add(ChatMessage("user", "<tool_response>\n$result\n</tool_response>"))
             }
         }
 
@@ -340,24 +290,18 @@ class GenieXEngine(private val context: Context) {
 
     /** One generation: render the prompt, stream it, return the raw reply. */
     private fun runOnce(
-        active: VlmWrapper,
-        messages: Array<VlmChatMessage>,
+        active: LlmWrapper,
+        messages: Array<ChatMessage>,
         toolsJson: String?,
         thinking: Boolean,
         sink: TokenSink,
         alreadyEmitted: String,
     ): String = runBlocking {
-        val prompt = active.applyChatTemplate(messages, toolsJson, thinking)
+        val prompt = active.applyChatTemplate(messages, toolsJson, thinking, true)
             .getOrThrow()
             .formattedText
 
-        // The SDK pulls the image paths out of the messages themselves, so the
-        // config and the prompt can never disagree about how many images there
-        // are -- a mismatch there desynchronises the vision placeholders.
-        val config = active.injectMediaPathsToConfig(
-            messages,
-            GenerationConfig().apply { maxTokens = MAX_NEW_TOKENS },
-        )
+        val config = GenerationConfig().apply { maxTokens = MAX_NEW_TOKENS }
 
         val raw = StringBuilder()
         var emitted = alreadyEmitted
@@ -405,32 +349,6 @@ class GenieXEngine(private val context: Context) {
         ContactsTool.name -> "Looking in contacts…"
         CalendarTool.name -> "Checking the calendar…"
         else -> "Checking the device…"
-    }
-
-    private fun textMessage(role: String, content: String) =
-        VlmChatMessage(role, listOf(VlmContent("text", content)))
-
-    /**
-     * The user's turn, carrying any attached images.
-     *
-     * Two things have to line up or the VLM plugin segfaults (observed: a null
-     * deref in LlamaVlm::generate when they don't):
-     *
-     *  1. Each `image` content is what `extractMediaPaths` reads to load the
-     *     bitmaps, so the paths reach `GenerationConfig.imagePaths`.
-     *  2. The prompt needs one libmtmd `<__media__>` marker per bitmap -- but
-     *     the plugin's apply_chat_template INSERTS that marker itself for each
-     *     `image` content (measured: it grows the message by 11 chars per
-     *     image). So we must NOT add our own, or the count becomes 2 markers to
-     *     1 bitmap and libmtmd aborts.
-     *
-     * Images lead the text -- Qwen wants them ahead of the question.
-     */
-    private fun userMessage(text: String, imagePaths: List<String>): VlmChatMessage {
-        val contents = mutableListOf<VlmContent>()
-        for (path in imagePaths) contents.add(VlmContent("image", path))
-        contents.add(VlmContent("text", text))
-        return VlmChatMessage("user", contents)
     }
 
     /** Forget the conversation currently in the KV cache. */

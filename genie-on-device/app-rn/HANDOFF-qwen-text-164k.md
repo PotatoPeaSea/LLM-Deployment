@@ -1,156 +1,192 @@
-# Handoff: get GenieX Qwen3.5-2B TEXT generation working at 164K ctx
+# Handoff: GenieX Qwen3.5-2B TEXT generation — FIXED (root cause: wrong wrapper class)
 
-Date: 2026-07-24. **Goal, narrowed to one thing: make the 2B produce a plain
-text reply on the NPU at `nCtx = 164000`.** No vision, not even tools required —
-just one working text turn. Right now EVERY generate SIGSEGVs.
-
-Vision (`HANDOFF-qwen-vision.md`) is downstream of this — you can't test images
-until text generates. The runtime-switch and QNN-NPU work is done (see status).
+Date: 2026-07-24 (session 2, corrected). **Text generation now works at full
+production config: 164K ctx, NPU, tool schemas attached.** Verified live on
+device with real streamed replies. There is one narrower follow-up bug (a
+content-dependent template crash, see bottom) but general chat is solid.
 
 App: `genie-on-device/app-rn`, package `com.geniechatrn`, board QCS8550 (Hexagon
 v73, 11.5GB), screen 720x1280. Memory: `geniex-android-sdk-rn-app.md`.
 
 ---
 
-## The crash (exact, captured 2026-07-24)
-```
-signal 11 (SIGSEGV), fault addr 0x0, tid name DefaultDispatch, com.geniechatrn
-#00 libgeniex_plugin_llama_cpp.so  geniex::LlamaVlm::generate(geniex_VlmGenerateInput const*, geniex_VlmGenerateOutput*)+4144
-#01 libgeniex.so                    geniex_vlm_generate+864
-#02 libnpu_jni.so                   Java_com_geniex_sdk_jni_Vlm_generate+676
-#05 com.geniex.sdk.VlmWrapper$generateStreamFlow$1$1.invokeSuspend
-```
-Log right before it, every time:
-```
-vlm.cpp:320 generate] using text-only (direct llama) path
-vlm.cpp:344 generate] _ml_vlm_generate_internal: Tokenized new text portion into ~755 tokens
---- SIGSEGV ---
-```
-It dies **right after tokenizing, before emitting a single token**, inside
-Qualcomm's **prebuilt** `libgeniex_plugin_llama_cpp.so` at a **fixed offset
-(+4144)**. We can only change what we *pass* the plugin, not its internals.
+## Root cause
 
-**This is NOT new and NOT our regression.** The identical crash
-(`geniex::LlamaVlm::generate+4144`, fault 0x0, "right after prompt tokenization")
-is documented in `HANDOFF-qwen35-2b.md` as an active blocker from the prior
-session, before any of this session's commits. The QNN-NPU fix (`49fccb5`) and
-the runtime-switch fix (`c73f275`) touch the load path and the QNN `.so` set —
-neither is in the plugin's generate path. GenieX text-gen **did work early in the
-prior session** ("red, blue, yellow"; "Tokyo"; battery tool call returned real
-75%) and then some change in that same session flipped it into this unconditional
-crash. That change was never found. **Finding it is the goal.**
+**GenieX ships two separate generation APIs, and the app was using the wrong
+one for text.** `VlmWrapper` (image-capable, native `LlamaVlm::generate`) and
+`LlmWrapper` (text-only, native `Llm::generate`) are backed by **different
+native code paths** despite sharing the same GGUF and the same
+`libgeniex_plugin_llama_cpp.so`. `GenieXEngine` used `VlmWrapper`
+unconditionally — even for pure text turns with zero images — because it's a
+superset of `LlmWrapper` and avoids a reload the first time a user attaches a
+photo (see the removed comment in the old `ensureModel`).
 
----
+`VlmWrapper`/`LlamaVlm::generate` is broken on this device/plugin build: it
+SIGSEGVs (fault addr `0x0`) unconditionally, on literally every input tried —
+prompt content, `nCtx`, compute unit (npu/cpu), plugin version (Maven 0.3.12
+vs a local 0.3.16 build), KV-cache reset timing, sampler config. All of that
+was exhaustively tested in the first pass of this session (see git history for
+the previous version of this doc, or the corrected memory note in
+`geniex-android-sdk-rn-app.md`) and wrongly concluded to be an unconditional
+Qualcomm plugin bug.
 
-## Already ruled out — DO NOT re-test these
-- **Prompt size / tools** — a 74-token prompt with tools **disabled** crashes at
-  the same offset as a 757-token one (`HANDOFF-qwen35-2b.md` ruled-out #2). "Not
-  size-dependent; crashes unconditionally." So this is NOT about the tool schemas
-  or prompt length, and trimming the prompt is a dead end.
-- **Vision / mmproj** — `mmprojFile = null` (clip never touched) and forced
-  `visionReady = false` both still crash identically (ruled-out #1). The failed
-  `mtmd_init_from_file` (qwen3vl_merger unsupported) is a red herring for THIS
-  crash — the plugin logs "using text-only (direct llama) path" and dies anyway.
-- **The QAIRT lib mismatch** — that was the *separate* QNN `GenieDialog_create`
-  crash, fixed in `49fccb5`. GenieX uses `libggml-htp-v73`, not the QNN libs.
-- **Board state** — reproduces on a clean `adb reboot` (fresh boot, 9.7GB free).
-- **The switch / load path** — the model loads fine (`loaded qwen3_5_2b ... in
-  ~56s`); the crash is strictly in generate.
+**The user correctly pushed back**: text generation worked before image/VLM
+support was added. That was the missing constraint. Building a minimal
+diagnostic that called `LlmWrapper`/`Llm::generate` directly (bypassing
+`GenieXEngine` entirely) confirmed it: real streamed tokens, clean completion,
+no crash, on the identical GGUF, identical device, identical NPU backend.
 
----
+## The fix
 
-## Prime suspect: `nCtx = 164000` itself (test this FIRST)
-The crash is prompt-size-independent, but **nCtx has never been varied against
-generate.** The 164K KV cache is the one "large" knob left. The plugin clearly
-*loads* 164K (graph reserves, model validates) — but loading ≠ being able to
-generate at it.
+`GenieXEngine.kt` was rewritten to use `LlmWrapper` exclusively:
+- `wrapper: VlmWrapper?` → `wrapper: LlmWrapper?`.
+- `VlmCreateInput(...)` → `LlmCreateInput(name, gguf_path, tokenizer_path="",
+  ModelConfig, "llama_cpp", computeUnit)`. Empty `tokenizer_path` is correct —
+  the tokenizer lives inside the single-file GGUF.
+- `VlmChatMessage(role, List<VlmContent>)` → the flatter `ChatMessage(role,
+  content: String)`. Text-only messages only ever had one `VlmContent("text",
+  ...)` part anyway, so this is a lossless simplification.
+- `applyChatTemplate(messages, tools, thinking)` (VLM, 3 args) →
+  `applyChatTemplate(messages, tools, thinking, addGenerationPrompt=true)`
+  (LLM, 4 args — the VLM variant bakes `addGenerationPrompt` in, LLM's does
+  not).
+- Dropped `injectMediaPathsToConfig` (image-only) and `probeVision`/
+  `visionReady` (the vision capability probe, now moot).
+- **Images are declined outright** with a short note, rather than routed
+  anywhere. `ModelStore`'s `supportsImages = true` on the `qwen3_5_2b` spec is
+  now aspirational/unused for this model; the attach-button UI still shows
+  (untouched — out of scope) but any attached image gets the same "not
+  supported right now" message every attempt would have hit anyway (images
+  were already broken by the clip.cpp `qwen3vl_merger` incompatibility from
+  session 1 — this doesn't newly break anything).
 
-**Experiment 1 (highest value, do first):**
-1. `ModelStore.kt` `qwen3_5_2b` spec (line ~139): `declaredContextLength = 8192`.
-2. Rebuild, install, send a plain "hello".
-3. **If it generates at 8K** → the 164K context is the trigger; the plugin can't
-   generate at that window. Then bisect upward (32K, 64K, 96K, 128K) to find the
-   ceiling, and chase the plugin knobs that bound the KV/compute buffers:
-   `genie_config` for the QNN path uses `spill-fill-bufsize` / `mmap-budget`; for
-   GenieX check whether `ModelConfig` (only `nCtx` is set today, GenieXEngine.kt
-   kt:162) or `GenerationConfig` expose `nBatch`/`nUbatch`/kv-offload knobs via
-   `javap` on the AAR. The *goal is text at 164K*, so a working smaller ctx is a
-   diagnostic, not the finish line — but it tells you the fight is "why can't the
-   plugin generate at 164K" (likely a buffer it sizes from nCtx overflowing).
-4. **If it STILL crashes at 8K** → nCtx isn't it; go to the suspect list below.
+## Verified on device (2026-07-24, full production config)
+
+- `ModelStore.kt`: `declaredContextLength = 164000`, `computeUnit = "npu"` —
+  **unchanged from before this investigation**, i.e. the real shipping config,
+  not a reduced diagnostic one.
+- Loaded in ~1.4–2.0s (HTP graph cache warm) up to the documented ~56s cold.
+- **"Tell me a short joke"**: full system prompt (with tool-use instructions)
+  + 5 tool schemas attached (756-token rendered prompt — the exact size that
+  used to crash) → coherent reply, streamed, no crash. `prefill_speed=324
+  tok/s, decoding_speed=15.5 tok/s`.
+- **"What do you think of pizza"**: same config, different question → full
+  multi-paragraph reply, 12.6s, no crash.
+- Confirmed visually in-app: `Qwen3.5 2B · 164,000 ctx` shown in the composer
+  footer, reply bubble renders normally.
 
 ---
 
-## If nCtx isn't it: bisect the `generateStreamFlow` inputs
-The generate call is `GenieXEngine.runOnce` (kt:342):
-```
-prompt = active.applyChatTemplate(messages, toolsJson, thinking).formattedText   // kt:350
-config = active.injectMediaPathsToConfig(messages, GenerationConfig{maxTokens=1024}) // kt:357
-active.generateStreamFlow(prompt, config).collect { ... }                        // kt:364  <-- crashes
-```
-Get to a **minimal working baseline**, then add variables back one at a time.
-Minimal = the closest thing to the prior-session "Tokyo" test that worked:
-1. **`thinking = false`** always (the `enableThinking` arg to `applyChatTemplate`).
-   Qwen3 thinking mode changes the template; try forcing it off.
-2. **Skip `injectMediaPathsToConfig`** on text turns — pass a plain
-   `GenerationConfig().apply { maxTokens = MAX_NEW_TOKENS }` straight to
-   `generateStreamFlow` when there are no images. It is called on *every* turn
-   today, including pure text; if it leaves a vision field half-set, that could
-   be what `LlamaVlm::generate` derefs.
-3. **`GenerationConfig` params** — try the SDK default (drop `maxTokens`).
-4. **Messages structure** — try a single user message, no system message, empty
-   history (`applyChatTemplate` with one `VlmChatMessage("user", [text])`).
-If the bare case generates, re-add system prompt → history → tools → thinking →
-injectMedia until it crashes; the one that flips it is the cause.
+## Follow-up bug (separate, narrower, NOT YET ROOT-CAUSED)
 
----
+**Some specific questions crash `Llm::apply_chat_template` with a genuine,
+uncaught C++ exception** — `libc++abi: terminating due to uncaught exception
+of type std::invalid_argument: ... Jinja Exception: Unexpected message role.`
+→ `SIGABRT`. This is a **different bug** from the SIGSEGV above: it's inside
+`geniex::LlamaLlm::apply_chat_template` (not `::generate`), it's a real Jinja
+template-engine exception (not a null deref), and — critically — it is
+**content-dependent, not universal**: most chat turns work fine.
 
-## Highest-value lead: the last-known-working prior-session build
-GenieX text worked, then broke, **within the prior session** — same technique
-that cracked the QNN crash (find the last-working point and diff). There is no
-intermediate git history (the whole GenieX feature landed in one commit,
-`49fccb5`), so reconstruct it from the prior session's record:
-- Plan: `~/.claude/plans/deep-waddling-zephyr.md`.
-- `HANDOFF-qwen35-2b.md` "Leads not yet tried" #3 is exactly this and was never
-  done. It notes the working test predates `probeVision` — but #1 already proves
-  vision/probeVision isn't the cause, so look at the *other* things that changed
-  in that window: was `nCtx` bumped to 164K after the working test? were the
-  system prompt / tools / thinking flag added after it? That diff is the answer.
+**Reproduced crashing:**
+- "What time is it right now on this device"
+- "What is the capital of France"
+- "What is the weather like in general on Mars"
 
----
+**Reproduced working (same system prompt, same tool schemas, same everything
+else):**
+- "Tell me a short joke"
+- "What do you think of pizza"
+- "ping" / "hello" (trivial baseline)
 
-## Status (what's done vs this goal)
-| Item | State |
-|---|---|
-| QNN NPU crash (QAIRT lib mismatch) | ✅ fixed `49fccb5`, verified (Llama 3.2 3B on NPU) |
-| Runtime-switch DSP race | ✅ fixed `c73f275`, verified on device |
-| GenieX 2B **load** at 164K | ✅ works (~56s cold / ~9.5s warm graph_reserve) |
-| GenieX 2B **text generation** at 164K | 🔴 **THE GOAL** — SIGSEGV `LlamaVlm::generate+4144`, every turn |
-| Vision (image inference) | ⛔ deferred — blocked by clip.cpp qwen3vl_merger AND gated behind this |
+**What was ruled out this session:**
+- **Not about the `"tool"` role or tool-call loop.** The crash happens on the
+  turn's very **first** `applyChatTemplate` call — `message_count: 2`
+  (system + user only), confirmed by dumping every message's `role`/`content`
+  from Kotlin right before the call (both logged correctly: `role='system'`,
+  `role='user'`). No tool has been called yet when it crashes.
+- **Not about tools being attached.** Reproduces identically with
+  `toolsJson = null` (tools completely omitted from the call).
+- **Not about the word "What"** or interrogative phrasing — "What do you
+  think of pizza" (also starts with "What") works fine.
+- **The role strings really are correct** at the JNI call boundary (see
+  above) — whatever the native Jinja engine sees, it isn't what the app sent.
+
+**Working theory, unconfirmed:** the GGUF's actual embedded chat template
+(extracted via a small hand-rolled GGUF-metadata parser, python snippet in
+this session's scratchpad if still around — or re-extract with `strings` /
+manual KV parsing, key `tokenizer.chat_template`) is a large (~7800 char)
+Jinja2 template using features a minimal engine may not fully support:
+macros (`render_content`), namespaces, `messages[::-1]` negative-step
+slicing, and `loop.previtem`/`loop.nextitem` (Jinja2-only loop extensions).
+llama.cpp's bundled **minja** (a minimal from-scratch Jinja implementation,
+not real Jinja2) is known to support only a subset of Jinja2. The pattern —
+some content triggers it, most doesn't, always at the same `raise_exception`
+call site regardless of which branch *should* have matched — is consistent
+with a minja parser/evaluator bug that's sensitive to something structural
+about the rendered token stream (possibly length- or content-adjacent, not
+truly semantic), not a real "wrong role" condition.
+
+**Next steps for whoever picks this up:**
+1. Get the raw minja parse/exec trace (may need a debug build of the plugin,
+   or bisect the template itself — trim the template down section by section
+   in a standalone `llama-cli --chat-template-file` test to find what specific
+   Jinja construct minja mishandles).
+2. Try swapping `tokenizer.chat_template` in the GGUF for a simpler
+   hand-written template (no macros/namespaces/loop extensions) as a
+   workaround, since GenieXEngine already doesn't rely on GGUF-embedded
+   chat_template being anything specific.
+3. This is orthogonal to the images/VlmWrapper issue — do not conflate the
+   two when reporting to Qualcomm.
 
 ---
 
 ## Gotchas / how to run
+
+- **No system node/adb niceties on this host.** A portable node was found each
+  prior session in a since-expired scratchpad. This session used
+  `/home/smart/.vscode-server/cli/servers/<version>/server/node` (bundled with
+  the VS Code Remote server) as a portable node — works fine for Gradle/Metro,
+  no npm needed since `node_modules/.bin/react-native` is already installed.
 - **Capture the crash with a big buffer.** `adb logcat -G 16M` first, or the
-  ~56s cold load spews verbose `GenieXSdk` repack lines that rotate the tombstone
-  out before you can dump it. Then `adb shell "logcat -d"` and grep for
-  `Tokenized new text portion` and `LlamaVlm::generate`.
-- **Load is slow when cold** (~56s, `graph_reserve` for the n_tokens=512 graph);
-  ~9.5s once the on-disk HTP graph cache warms. `adb reboot` clears the cache.
-- **Board reboots under memory stress** and drops off USB — replug, `adb
-  kill-server && adb start-server`, `adb reverse tcp:8081 tcp:8081`.
-- **`adb install -r` clears `adb reverse`** → stale JS bundle → bogus
-  `Genie.generate got N arguments` errors. Re-set the reverse and relaunch.
-- **Device dozes** → black screencap → `adb shell input keyevent KEYCODE_WAKEUP`.
-- Build: portable node (`find /tmp -maxdepth 6 -iname node -type f`),
-  `env PATH="$ND/bin:$PATH" ./gradlew :app:assembleDebug` from `app-rn/android`,
+  ~10-56s load spews verbose `GenieXSdk` repack lines that rotate the tombstone
+  out before you can dump it.
+- **`adb install -r` clears `adb reverse`** → re-set it and relaunch, or you
+  get a stale JS bundle / bogus `Genie.generate got N arguments` errors.
+- **This board reboots under memory stress, unpredictably** — happened twice
+  this session, always during/around an NPU model load. `adb` drops with "no
+  devices/emulators found"; just wait (`until adb get-state >/dev/null 2>&1;
+  do sleep 3; done`) and relaunch once it's back. Not related to either bug
+  above.
+- **This board also has an unrelated, harmless crash-loop**: the camera
+  provider service (`vendor.qti.camera.provider-service_64`,
+  `CamX::HwEnvironment`) SIGABRTs on a ~5s cycle constantly in the background.
+  It floods any untargeted `adb logcat`/tombstone watch — always filter to
+  `com.geniechatrn`'s pid or grep for `GenieXSdk`/`GenieXEngine`/
+  `geniechatrn` specifically, never a bare `DEBUG:F` tag.
+- **`adb shell input text` truncates at the first space** unless you encode
+  spaces as `%s` (e.g. `input text "hello%sworld"`), or the keyboard's
+  predictive-text bar can eat a plain-space multi-word `input text` call.
+- **The app's "pending" bubble does not indicate `generate()` was actually
+  called.** If a UI tap misses (e.g. lands on the launcher after a
+  background/foreground bounce, common right after `adb install -r`), the
+  chat shows a permanently-stuck spinner with no native activity at all in
+  logcat. Always confirm with `adb logcat -d | grep -i GenieXSdk` (or
+  `GenieXEngine`) that a real `apply_chat_template`/`generate` call happened
+  before concluding a test passed or failed.
+- Build: `cd android && env PATH="<node-dir>:$PATH" ./gradlew :app:assembleDebug`,
   `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
-- Re-push the 2B bundle if needed: `scripts/11_push_gguf_model.sh qwen3_5_2b com.geniechatrn`.
-- **Inspect the real SDK API** with `javap` on the AAR's `classes.jar`
-  (`~/.gradle/caches/.../geniex-android/0.3.12/*.aar`) — the web docs are wrong.
-  Look specifically for `ModelConfig` / `GenerationConfig` fields beyond `nCtx`
-  and `maxTokens` (batch/kv knobs) for Experiment 1.
-- **Escalation** if no input combo avoids the crash: it's a bug inside Qualcomm's
-  prebuilt plugin. Try a newer `com.qualcomm.qti:geniex-android` (> 0.3.12) — but
-  re-verify the QAIRT `pickFirst` after any bump (see `HANDOFF-qwen-vision.md`,
-  the "bumping the AAR can re-break the NPU" section), or raise it with Qualcomm.
+- Model already on-device from prior sessions; re-push if needed with
+  `scripts/11_push_gguf_model.sh qwen3_5_2b com.geniechatrn`.
+- **Inspecting the SDK surface**: `javap -p -c -classpath <extracted classes.jar>
+  com.geniex.sdk.<LlmWrapper|VlmWrapper>` and `com.geniex.sdk.bean.*` — the AAR's
+  `classes.jar` is the source of truth, not the web docs. Use `-c` to
+  disassemble and read `$default` constructor bytecode for actual default
+  values (Kotlin default-arg bitmask trick).
+
+## Status
+
+| Item | State |
+|---|---|
+| GenieX 2B text generation, 164K ctx, NPU, tools attached | ✅ **FIXED** — verified live, multiple prompts |
+| Image attachment | ⛔ Not supported (VlmWrapper path is broken; deliberately unused now). Already broken pre-existing (clip.cpp `qwen3vl_merger` incompatibility) — no regression, just no longer silently routed through a crashing path either |
+| Certain content crashes `apply_chat_template` (Jinja "Unexpected message role") | 🟡 **New, separate, narrower bug** — not root-caused, see above. Most chat works; a few specific prompts don't |
