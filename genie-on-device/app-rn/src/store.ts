@@ -46,12 +46,20 @@ export type Settings = {
   brevity: boolean;
   thinking: boolean;
   lastModelId: string | null;
+  /**
+   * The open chat, persisted so a process restart (see GenieModule.kt --
+   * switching NPU models restarts the whole app, since in-process switching
+   * is unreliable on this device) resumes into the same chat instead of
+   * dropping the user at the chat list.
+   */
+  lastOpenChatId: string | null;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
   brevity: true,
   thinking: false,
   lastModelId: null,
+  lastOpenChatId: null,
 };
 
 export const newId = (): string =>

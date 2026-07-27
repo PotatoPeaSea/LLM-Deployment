@@ -140,6 +140,35 @@ object ModelStore {
             supportsImages = true,
             supportsTools = true,
         ),
+        ModelSpec(
+            id = "gemma4_e2b",
+            displayName = "Gemma 4 E2B",
+            // Unused, same reason as qwen3_5_2b: GenieX renders the GGUF's own
+            // template.
+            template = ChatTemplate.Qwen3,
+            supportsReasoning = true,
+            note = "Second GenieX/GGUF model -- added to test GenieX<->GenieX " +
+                "switching (same runtime, different model) in isolation from " +
+                "the QNN<->GenieX cross-runtime switch bugs. See " +
+                "HANDOFF-cli-tool-and-crash-rootcause.md.",
+            systemPrompt =
+                "You are a helpful assistant running entirely on this device's NPU.",
+            brevityClause = " Be brief.",
+            runtime = Runtime.GENIEX,
+            ggufFile = "gemma-4-E2B-it-Q4_0.gguf",
+            // No mmprojFile -- text-only on purpose, same reason as
+            // qwen3_5_2b's images being off: the VLM path SIGSEGVs
+            // unconditionally on this device/plugin build.
+            computeUnit = "npu",
+            // Deliberately smaller than qwen3_5_2b's 164000: this is testing
+            // switch reliability, not context ceilings, and Gemma 4's hybrid
+            // local/global attention (sliding_window=512 on 4 of every 5
+            // layers) means most of the KV cache doesn't scale with this
+            // number anyway -- no need to chase the DSP mapping wall here.
+            declaredContextLength = 32768,
+            supportsImages = false,
+            supportsTools = false,
+        ),
     )
 
     val DEFAULT_MODEL_ID = MODELS.first().id

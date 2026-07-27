@@ -323,6 +323,22 @@ def run_one_turn(
                     turn_id, prompt, "reboot", time.time() - t0,
                     "\n".join(fatal_lines) or "device uptime reset / adb unreachable",
                 )
+            # GenieModule now restarts the whole app process for a genuine
+            # model switch (see HANDOFF-cli-tool-and-crash-rootcause.md --
+            # every in-process switch combination was unreliable; a fresh
+            # process was the only thing that never failed). That means a pid
+            # change here is the COMMON case for a switching turn, not a rare
+            # crash -- detect it promptly instead of waiting out the full
+            # timeout for something that already happened. Requires a NEW pid
+            # actually up, not just the old one gone, so the brief gap while
+            # Android spins up the replacement process doesn't false-trigger.
+            if pre_pid:
+                cur_pid = device_pid(serial)
+                if cur_pid and cur_pid != pre_pid:
+                    return TurnOutcome(
+                        turn_id, prompt, "app_crash", time.time() - t0,
+                        "\n".join(fatal_lines) or f"pid changed {pre_pid} -> {cur_pid} (restart)",
+                    )
 
     # Timed out or logcat EOF'd. Figure out which.
     if rebooted_since(pre_uptime, serial):

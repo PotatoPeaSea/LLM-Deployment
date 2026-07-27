@@ -27,6 +27,30 @@ class ChatEngine(private val context: Context) {
         private const val TAG = "ChatEngine"
 
         /**
+         * Retries for a failed `GenieDialog_create`. GenieModule now restarts
+         * the whole process for every model switch rather than reloading in
+         * place (see GenieModule.switchToOrRestart -- every in-process
+         * combination was unreliable), which mostly eliminated this failure,
+         * but not completely: the OLD process being dead doesn't guarantee
+         * its DSP session has finished releasing by the time the NEW
+         * process's first create() runs, so the same async-teardown race
+         * this app keeps running into just moved from an in-process boundary
+         * to a process boundary. Measured via scripts/stress_switch.py: ~1/6
+         * of switches still hit `GenieDialog_create failed: ERROR_GENERAL
+         * (-1)` on the fresh process's first attempt.
+         *
+         * Retrying is safe here specifically because this is a genuinely
+         * fresh process retrying its OWN first, never-succeeded create --
+         * not a reload after something else was already resident, which is
+         * the pattern that made QNN's own cleanup (`QnnBackend_free`)
+         * SIGSEGV. A failed first create fails cleanly (a catchable
+         * GenieException, confirmed by repeated testing), so unlike that
+         * in-process case, there is something to retry.
+         */
+        private const val CREATE_ATTEMPTS = 3
+        private const val CREATE_SETTLE_MS = 1500L
+
+        /**
          * Space kept free for the reply when deciding whether the next turn fits,
          * and the hard ceiling handed to Genie for that reply.
          *
@@ -142,7 +166,7 @@ class ChatEngine(private val context: Context) {
         // internal storage -- several GB, but only once. See ModelStore.stage.
         val bundle = ModelStore.stage(context, modelId, onStaging)
         val t0 = System.currentTimeMillis()
-        handle = GenieBridge.nativeCreate(
+        handle = createHandleWithRetry(
             ModelStore.buildConfigJson(bundle),
             context.applicationInfo.nativeLibraryDir,
         )
@@ -151,6 +175,29 @@ class ChatEngine(private val context: Context) {
         primedChatId = null
         occupancy = 0
         Log.i(TAG, "loaded $modelId (context $contextLength) in ${System.currentTimeMillis() - t0}ms")
+    }
+
+    /** See [CREATE_ATTEMPTS]. The first attempt runs immediately; only a failure pays the settle. */
+    private fun createHandleWithRetry(configJson: String, nativeLibDir: String): Long {
+        var lastError: Throwable? = null
+        for (attempt in 1..CREATE_ATTEMPTS) {
+            if (attempt > 1) {
+                Log.w(TAG, "GenieDialog_create failed (attempt ${attempt - 1}/$CREATE_ATTEMPTS), " +
+                    "settling ${CREATE_SETTLE_MS}ms then retrying", lastError)
+                try {
+                    Thread.sleep(CREATE_SETTLE_MS)
+                } catch (e: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    break
+                }
+            }
+            try {
+                return GenieBridge.nativeCreate(configJson, nativeLibDir)
+            } catch (e: Throwable) {
+                lastError = e
+            }
+        }
+        throw lastError ?: IllegalStateException("GenieDialog_create failed with no error")
     }
 
     /**

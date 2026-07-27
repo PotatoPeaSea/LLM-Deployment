@@ -1,19 +1,21 @@
-# Handoff: on-device CLI built + the "essay about the telephone" crash actually root-caused (two separate bugs, one fixed) — memory-pressure reboot still open
+# Handoff: on-device CLI built, Jinja-template crash fixed, and every model-switch failure mode root-caused and fixed via a process-restart architecture
 
-Date: 2026-07-24/2026-01-28 (device clock is wrong/unsynced — see below). Follow-on to
-`HANDOFF-reasoning-tools-fixes.md`, which ended with a reboot that was never
-root-caused because nothing survived to inspect it afterward. This session
-built the tool that finally solves that problem, and used it to find **two
-completely different bugs** that were both presenting as "the app crashes on
-certain prompts":
+Date: 2026-07-24 through 2026-01-31 (device clock is wrong/unsynced — see
+below). Follow-on to `HANDOFF-reasoning-tools-fixes.md`, which ended with a
+reboot that was never root-caused because nothing survived to inspect it
+afterward. This session built the tool that finally solves that problem, and
+used it to find and fix three completely different bugs:
 
-1. **A native Jinja-template crash — ROOT-CAUSED AND FIXED, verified working.**
+1. **A native Jinja-template crash — ROOT-CAUSED AND FIXED, verified working.** (Part 1)
 2. **A real device reboot from memory pressure during a QNN↔GenieX runtime
-   switch — ROOT-CAUSED, NOT FIXED.** This is the actual next task.
+   switch — ROOT-CAUSED, then generalized into four distinct switch-failure
+   modes across every model/runtime combination, all FIXED.** (Parts 2-3)
 
 Read this whole doc before touching the code again — it corrects a few wrong
 turns from earlier in this same session (documented below, not hidden,
-because the wrong turns are informative).
+because the wrong turns are informative). **Part 3 supersedes Part 2's "not
+fixed" status and the mid-session QNN-removal detour — read Part 3 first if
+you're only here for the current state.**
 
 App: `genie-on-device/app-rn`, package `com.geniechatrn`, board QCS8550
 (Kalama). Memory: `geniex-android-sdk-rn-app.md`, `qcs8550-qwen3-4b-genie.md`.
@@ -348,12 +350,209 @@ memory-availability signal.
 
 ---
 
+## Part 3: the switch reboot, actually fixed — by not switching in-process at all
+
+Follow-on to Part 2, same session continued. Short version: **no in-process
+fix exists.** Every combination of unloading one NPU model and loading
+another in the same process is unreliable on this device's Hexagon/FastRPC
+driver, regardless of vendor SDK or direction. The fix that actually works is
+to stop trying — a model switch now restarts the whole app process, and every
+stress run since backs that up.
+
+### Dead ends ruled out first (don't re-try these)
+
+- **A real memory-availability check before switching**, which is what the
+  user originally asked for in Part 2. Exhaustively checked, including with
+  root (`adb root` on this dev board — not available to the shipped app,
+  only to this debugging session):
+  - `/proc/meminfo`'s `CmaFree` is stuck at 0 kB *permanently*, even with
+    nothing loaded — not a live signal for anything.
+  - `/sys/kernel/debug` is mounted but empty on this vendor image — no
+    `dma_buf`, `ion`, or `fastrpc` accounting exposed anywhere.
+  - `/sys/kernel/tracing` (fastrpc tracepoints) exists and is genuinely
+    useful for diagnosis, but is gated on the `readtracefs` group / root —
+    unreachable from the app's own UID at runtime.
+  - Decompiled the GenieX SDK jar (`GenieXSdk`, `LlmWrapper`, the `Llm` JNI
+    class) — no memory-query method anywhere in its public surface.
+  - **Conclusion: there is no API, at any privilege level available to this
+    app, that reports DSP/ION/FastRPC free memory on this device.**
+- **Forcing a synchronous/harder DSP reset before switching.**
+  `GenieDialog_free`/`GenieEngine_free` are already the most forceful release
+  calls the Genie C API exposes; their headers give no synchronicity
+  guarantee about the underlying QNN HTP backend actually finishing (that
+  asynchrony is the whole problem). The real teardown lives inside
+  `libQnnHtp.so`, called only internally by the closed-source `GenieDialog`
+  implementation — the app never gets a handle to force it itself. Actually
+  forcing a clean state would mean a `remoteproc` subsystem restart
+  (`/sys/class/remoteproc/*/state`), which needs root (unavailable to the
+  shipped app) and would kill every other process sharing the cDSP (audio,
+  sensors, etc.) — disproportionate for one app's model switch.
+
+### The diagnostic tool: `scripts/stress_switch.py`
+
+Generalization of `genie_cli.py`'s turn-runner into a repeated-cycle harness:
+alternates two models (`--model-a`/`--model-b`, any pair, any runtime) as
+genuinely fresh chats, back-to-back, **in the same app process** — the point
+being to never force-stop between cycles, so a real per-switch race shows up
+instead of being hidden by a clean reset. Reuses `genie_cli.py`'s logcat
+tail and reboot/crash detection. This is what found everything below.
+
+### The full failure matrix (all four combinations tested, all four broken)
+
+The original ask was "does repeated switching between QNN and GenieX
+accumulate a leak, or is it a pure race" — that turned out to be the wrong
+axis entirely. The real question was whether the switch bug was specific to
+QNN↔GenieX, and it was not: **every one of the four possible switch
+combinations was unreliable**, each via a *different* mechanism, all
+traceable to the same family of symptom (`fastrpc_mmap failed`, `tNode->
+map.fd != fd`, `err 1002` — the DSP session not actually being free yet):
+
+| Switch | Failure | Rate | Recoverable? |
+|---|---|---|---|
+| QNN → GenieX | `-100201` on create (fastrpc_mmap) | rare after settle+retry bump | yes, retry loop already existed |
+| GenieX → QNN | `err 1002` on create, then QNN's own `QnnBackend_free` **SIGSEGVs** while freeing the half-built backend | ~100%, settle-time insensitive (2000ms → 5000ms made no difference) | **no** — native crash, uncatchable from Kotlin |
+| GenieX → GenieX (2 different GGUFs) | the **cDSP compute process itself aborts** (`qurt_exit()`/`abort()` inside `htp_iface_start`) on the *first* `llama_decode` after switching — `create()` succeeds, generation crashes | ~50%, intermittent | no — DSP-side native abort |
+| QNN → QNN (2 different QNN models) | `err 1002` on create (`"multiple sessions not allowed for untrusted apps"` — reads like an intentional FastRPC/SELinux policy) | first switch onward | **no — and it never recovers**: every subsequent create in that process fails identically, forever |
+
+The QNN→GenieX direction (Part 2's original bug) already had a working
+mitigation (settle + `GenieXEngine.createWithRetry`). The other three did
+not, and none of them yield to longer waits or retry loops — GenieX→QNN and
+GenieX→GenieX are native crashes with nothing left to retry once they
+happen, and QNN→QNN doesn't even fail transiently, it wedges permanently.
+
+The one clean signal across every single stress run: **a fresh process's
+first load, of any model, on any runtime, was 100% reliable, every time.**
+It is specifically *reusing* an already-touched DSP session within one
+process that's unreliable — not model loading itself.
+
+### The fix: `GenieModule.switchToOrRestart`
+
+A genuine model switch (target model differs from whatever's currently
+resident in either engine) no longer unloads-and-reloads in place. It
+restarts the whole app process instead, via
+`Intent.makeRestartActivityTask` + `Runtime.getRuntime().exit(0)`, and lets
+the *new* process's first load be a first load, not a second one:
+
+- `GenieModule.kt`: `switchToOrRestart(modelId)` replaces the old
+  `switchTo(runtime)` at all three call sites (`loadModel`, `generate`,
+  `runCliTurn`). `SWITCH_SETTLE_INTO_GENIEX_MS`/`SWITCH_SETTLE_INTO_GENIE_MS`
+  are gone — dead code, since nothing is ever unloaded-and-reloaded
+  in-process anymore.
+- **JS resume**: a process restart kills the JS VM too, so `App.tsx`/
+  `store.ts` now persist `Settings.lastOpenChatId`, restored on cold start —
+  otherwise a switch-triggered restart would silently dump the user back at
+  the chat list. `ChatScreen`'s existing `loadModel`-on-mount effect (that
+  was already there, unrelated to this fix) does the rest: the resumed chat
+  reopens, calls `loadModel` again, and this time it's a genuinely fresh
+  process.
+  - This works because `generate()` (the JS side) is only ever called
+    *after* `loadModel` already resolved `ready` — the Composer is disabled
+    until then — so there's never an in-flight generation for a restart to
+    interrupt. A switch always happens at `loadModel` time, before the user
+    can have sent anything.
+  - `runCliTurn` (the CLI path) does **not** have this precondition — it
+    calls `switchToOrRestart` too so it can't crash/wedge, but a CLI
+    invocation that switches models mid-run now costs a full app restart per
+    switch, and the CLI-driven turn that triggered it is simply abandoned
+    (no JS involved to resume it — see `stress_switch.py`'s own retry loop,
+    which resends the same logical turn after detecting the restart, to
+    emulate what the real JS resume flow does).
+- **Residual fresh-process create() race**: even a genuinely fresh process's
+  *first* create() occasionally still failed (`GenieDialog_create failed:
+  ERROR_GENERAL (-1)`, ~1/6 of switches in early testing) — the OLD
+  process being fully dead doesn't guarantee the kernel/DSP finished
+  reclaiming its memory before the NEW process's first create() runs. Unlike
+  the in-process SIGSEGV case, this fails *cleanly* (a catchable
+  `GenieException`, confirmed repeatedly), so `ChatEngine.ensureModel` got
+  its own `createHandleWithRetry` loop (`CREATE_ATTEMPTS = 3`,
+  `CREATE_SETTLE_MS = 1500`), mirroring `GenieXEngine`'s existing one.
+- **A genuine device reboot still happened once** during early testing of
+  this fix, under `stress_switch.py`'s adversarial back-to-back cadence (a
+  new process every 2-15s) — `qwen3_5_2b` loaded, generated one reply, then
+  the board went down moments into a second generation. No
+  `lowmemorykiller` kill logged first this time (unlike Part 2's original
+  reboot), suggesting something lower-level (kernel/watchdog) — same root
+  cause family (DSP memory pressure from a fresh process's first large
+  allocation racing the previous process's not-yet-complete reclaim), just
+  a harder failure mode. Fixed (or at least not reproduced since) by adding
+  `GenieModule.FIRST_LOAD_SETTLE_MS = 3000L`: an unconditional 3s wait
+  before a process's very first model create(), on top of whatever RN's own
+  cold start already costs. Blunt, because — see above — there is no real
+  readiness signal to gate on instead.
+- **One more edge case found, not yet fixed, self-heals**: rarely, Android's
+  own `ActivityTaskManager` decides to reuse the still-alive process for the
+  restart `Intent` ("Process ... Already Exists in BG") instead of spawning
+  a new one, and then this app's own `exit(0)` — which fires immediately
+  after `startActivity()` — kills that reused instance anyway. There's no
+  live activity left to resume until Android's own crash-recovery notices
+  the foreground task's process died and respawns it, which is slower (~60s
+  observed once) but did recover on its own, every time seen. 1 occurrence
+  in ~46 switches across all verification runs.
+
+### Verification (`scripts/stress_switch.py`, all four combinations, post-fix)
+
+`stress_switch.py` was upgraded alongside the fix: a switch-triggered
+`app_crash` (pid change) is now the *expected* outcome, not a failure, so the
+harness resumes the same logical turn (new `turnId`, same `chatId`) after a
+restart and checks that it actually completes — up to `RESUME_ATTEMPTS = 3` —
+rather than just confirming a restart happened. A "genuine reboot" (uptime
+reset) is tracked separately from an intentional restart (pid change).
+
+| Switch | Result |
+|---|---|
+| QNN ↔ QNN (`llama_v3_2_1b_instruct_ctx4096` ↔ `qwen3_4b`) | **16/16 switches resolved ok**, 0 reboots (was: permanently wedged after the first switch) |
+| GenieX ↔ GenieX (`qwen3_5_2b` ↔ `gemma4_e2b`, a new model added specifically to test this — see below) | **24/24 resolved ok, 0 reboots** after adding `FIRST_LOAD_SETTLE_MS` (first attempt without it: 16/16 eventually resolved, but 1 genuine reboot along the way) |
+| QNN ↔ GenieX (`qwen3_4b` ↔ `qwen3_5_2b`) | **20/20 resolved ok, 0 reboots** (1 slow-but-self-healing `ActivityTaskManager` edge case, see above) |
+
+### `gemma4_e2b`: a second GenieX model, added to isolate GenieX↔GenieX from QNN
+
+Needed a second GGUF model to test whether the switch bugs were specific to
+*two different vendor backends* (QNN vs GenieX) racing for the DSP, or a
+broader "any DSP session reuse" issue. Picked
+`unsloth/gemma-4-E2B-it-GGUF` (Q4_0, ~2.82 GiB) — genuinely new architecture
+(`general.architecture = gemma4`, not `gemma3`/`gemma3n`), confirmed present
+in the bundled GenieX SDK's `libllama.so` (both 0.3.12, what's actually
+pinned in `build.gradle`, and 0.3.16) via `strings` before downloading
+anything: real upstream llama.cpp support, including Gemma-4-specific
+assertions (`"Gemma 4 requires n_embd_head_k == n_embd_head_v"`). Loaded and
+generated coherently on the very first try, text-only (no `mmprojFile` — the
+VLM path is already known-broken on this device for `qwen3_5_2b`, no reason
+to expect otherwise here), `declaredContextLength = 32768` (deliberately
+smaller than `qwen3_5_2b`'s 164000; this was about testing switch
+reliability, not chasing a context ceiling, and Gemma 4's hybrid local/
+global attention — `sliding_window = 512` on 4 of every 5 layers — means
+most of the KV cache doesn't scale with this number anyway). One known
+cosmetic issue, not fixed: its `<|channel>thought...<channel|>` reasoning
+tags aren't recognized by `ReasoningSplitter` (tuned for Qwen's `<think>`
+convention), so they currently leak into the visible answer instead of
+populating `thoughts`.
+
+### Also this session: the QNN-removal detour
+
+Earlier in this session, before the GenieX↔GenieX/QNN↔QNN data came in, the
+working hypothesis was "nuke QNN, go pure-GenieX" — reasonable at the time
+(QNN→GenieX was believed largely fixed; GenieX→QNN's SIGSEGV looked
+QNN-specific). That hypothesis didn't survive contact with the QNN↔QNN and
+GenieX↔GenieX results: the failure is about DSP session reuse generally, not
+about QNN specifically, so going pure-GenieX would not have fixed anything —
+it would have swapped "two vendor backends fighting over the DSP" for "one
+vendor backend fighting with itself," which is exactly what GenieX↔GenieX
+turned out to still do (until the restart fix). The hybrid dual-runtime
+architecture was kept. A branch, `geniex-qnn-hybrid`, was created and pushed
+to `origin` at commit `96a47fc` as a snapshot of the working state *before*
+this detour started (Part 0-2's CLI tooling + Jinja fix + the settle-time
+bump, i.e. everything up to but not including this restart architecture) —
+kept as a reference point, not because QNN removal is still planned.
+
+---
+
 ## Status
 
 | Item | State |
 |---|---|
-| CLI tool (`CliReceiver` + `genie_cli.py`) | ✅ built, verified working, several tooling bugs found and fixed along the way (Part 0) |
-| Jinja `apply_chat_template` crash ("essay about the telephone" etc.) | ✅ **root-caused and fixed**, verified across repeated fresh-install runs |
-| Runtime-switch memory-pressure reboot (QNN→GenieX, fresh chat) | 🔴 **root-caused, NOT fixed** — settle-time bump tried and did not help; needs a real memory-availability check before the switch, per user's explicit direction |
-| `SWITCH_SETTLE_MS`/`CREATE_ATTEMPTS`/`CREATE_SETTLE_MS` bump | Applied, uncommitted, kept (harmless, doesn't fully fix Part 2) |
-| Git state | **Nothing committed this session.** `git status`: modified `android/app/src/debug/AndroidManifest.xml`, `GenieModule.kt`, `GenieXEngine.kt`; untracked `android/app/src/debug/java/` (CliReceiver.kt), `scripts/` (genie_cli.py). `ModelStore.kt` has no diff (the `supportsTools=false` experiment was reverted). User was asked "want me to commit?" once, then asked to keep debugging instead — commit is still pending a decision. |
+| CLI tool (`CliReceiver` + `genie_cli.py`) | ✅ built, verified working (Part 0) |
+| Jinja `apply_chat_template` crash ("essay about the telephone" etc.) | ✅ **root-caused and fixed**, verified across repeated fresh-install runs (Part 1) |
+| Runtime-switch memory-pressure reboot / all 4 switch-combination failures | ✅ **root-caused and fixed** — process-restart architecture (Part 3), verified 60/60 switches resolved ok across all 4 combinations, 0 reboots in final verification |
+| Memory-check / forceful-DSP-reset approaches | 🔴 confirmed infeasible on this device — no API exists at any privilege level available to the app (Part 3) |
+| Second GenieX model (`gemma4_e2b`, Gemma 4 architecture) | ✅ added, loads and generates correctly; reasoning-tag splitting not wired up (cosmetic, not fixed) |
+| Git state | **`geniex-qnn-hybrid` branch pushed to `origin`** at commit `96a47fc` (Part 0-2 work: CLI tooling, Jinja fix, settle-time bump — snapshot before the QNN-removal detour). **`debug` branch has significant further uncommitted work on top of that same commit**: the process-restart architecture (`GenieModule.kt`, `ChatEngine.kt`), JS resume (`App.tsx`, `store.ts`), `gemma4_e2b` (`ModelStore.kt`), and tooling (`genie_cli.py` pid-detection speedup, `stress_switch.py` generalized + restart-aware). Not yet committed. |

@@ -1,5 +1,6 @@
 package com.geniechatrn.genie
 
+import android.content.Intent
 import android.util.Log
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -25,49 +26,33 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * Two engines live behind this module (see [Runtime]). They are never resident
  * at the same time: both want the same DSP memory, and the GGUF model's KV
- * cache alone is ~2GB at 164K. [switchTo] is what enforces that.
+ * cache alone is ~2GB at 164K. [switchToOrRestart] is what enforces that --
+ * by restarting the whole process on a genuine switch rather than unloading
+ * and reloading in place. See that function's doc for why.
  */
 private const val TOOL_PERMISSION_REQUEST = 0x9102
 
 /**
- * How long to let the DSP settle after unloading one runtime before loading the
- * other. The cDSP tears down a runtime's HTP session asynchronously, so the
- * incoming runtime can race the outgoing one for the device -- see [GenieModule.switchTo].
+ * Extra settle before THIS PROCESS's very first model create() -- on top of
+ * whatever React Native's own cold start already costs (observed 1-4s).
  *
- * 700ms was not always enough: reproduced via scripts/genie_cli.py (load
- * Qwen3-4B/GENIE, then immediately a fresh Qwen3.5-2B/GENIEX chat) hitting
- * "HTP0 buffer mapping failed ... 0 MiB free" / error -100201 on every one of
- * [GenieXEngine.CREATE_ATTEMPTS], i.e. the QNN side's HTP memory still wasn't
- * released 700ms + 3*900ms (3.4s) later. Bumped up front rather than only in
- * the retry loop, since a longer first wait means fewer retries are needed.
- * [GenieXEngine.ensureModel] additionally retries if a create still slips
- * through this window, so this value only needs to make retries rare, not
- * eliminate them.
+ * Restarting the process (see [GenieModule.switchToOrRestart]) fixed every
+ * crash/wedge failure mode tried, but under scripts/stress_switch.py's
+ * back-to-back restart cadence (a new process every 2-15s) a genuine device
+ * REBOOT still happened once: qwen3_5_2b's process loaded, generated one
+ * reply, and the board went down moments into a second one -- no
+ * `lowmemorykiller` kill logged first, unlike the original memory-pressure
+ * reboot this echoes, suggesting something lower-level (kernel/watchdog)
+ * this time. The OLD process being fully dead does not guarantee the
+ * kernel/DSP has finished reclaiming ITS memory, and the new process's
+ * first large allocation (qwen3_5_2b's KV buffer is ~1.9GB) can race that
+ * reclaim. This is a blunt, unconditional wait rather than a real
+ * readiness check because no such check exists on this device -- see the
+ * research notes in HANDOFF-cli-tool-and-crash-rootcause.md (proc/meminfo,
+ * debugfs, tracefs, and the GenieX SDK API were all checked; none expose
+ * DSP/ION/FastRPC free memory to an app-level process).
  */
-private const val SWITCH_SETTLE_INTO_GENIEX_MS = 2000L
-
-/**
- * Same race as [SWITCH_SETTLE_INTO_GENIEX_MS], opposite direction (GenieX
- * unloading, QNN loading) -- but with NO retry backstop possible, which is
- * why this needs a longer, more conservative settle than that direction gets
- * away with.
- *
- * Reproduced via scripts/stress_switch.py cycling qwen3_5_2b -> qwen3_4b: at
- * 2000ms settle, QnnDevice_create failed with err 1002
- * ("Transport layer setup failed", itself caused by the DSP queue create
- * hitting "fastrpc_mmap failed ... tNode->map.fd != fd" -- the same class of
- * "DSP session not released yet" symptom as -100201, just on the QNN side)
- * on EVERY one of 15 consecutive cycles. Unlike the GenieX side, this is not
- * a catchable, retryable error: QNN's own cleanup path (`QnnBackend_free`)
- * SIGSEGVs while freeing the half-initialized backend immediately after the
- * failed create, which is a native crash -- unrecoverable, and un-catchable
- * from Kotlin. [ChatEngine.ensureModel] has no retry loop and cannot get one
- * for the same reason: there is nothing left to retry once the process is
- * gone. The only lever here is not entering this failure path in the first
- * place, hence a longer, one-shot wait rather than a short-wait+retry
- * strategy.
- */
-private const val SWITCH_SETTLE_INTO_GENIE_MS = 5000L
+private const val FIRST_LOAD_SETTLE_MS = 3000L
 
 class GenieModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -76,6 +61,7 @@ class GenieModule(reactContext: ReactApplicationContext) :
     private val genieX = GenieXEngine(reactContext)
     private val worker = Executors.newSingleThreadExecutor()
     private val busy = AtomicBoolean(false)
+    private val firstLoadSettled = AtomicBoolean(false)
 
     override fun getName() = "Genie"
 
@@ -86,38 +72,77 @@ class GenieModule(reactContext: ReactApplicationContext) :
     }
 
     /**
-     * Unload whichever runtime is NOT about to be used. Cheap when it is
-     * already unloaded, which is the common case.
+     * Make sure [modelId] -- and only [modelId] -- is what's resident,
+     * restarting the whole app process first if a DIFFERENT model is
+     * currently loaded in either engine.
      *
-     * When it does unload one, it then pauses -- see
-     * [SWITCH_SETTLE_INTO_GENIEX_MS] / [SWITCH_SETTLE_INTO_GENIE_MS] for why
-     * the two directions get different, asymmetric waits. Both runtimes
-     * reach the NPU through the same cDSP, which releases an HTP session
-     * asynchronously after `close()` returns. If the incoming runtime creates
-     * its HTP device before that teardown lands, the create races it: GenieX's
-     * llama.cpp HTP0 create fails with `-100201` (catchable, retried by
-     * [GenieXEngine.ensureModel]), while QNN's device create fails with
-     * `err 1002` and then SIGSEGVs inside its own cleanup (native, NOT
-     * catchable -- [ChatEngine.ensureModel] has no retry loop and can't get
-     * one). The pause fires only on a real switch, so a same-runtime reopen
-     * pays nothing.
+     * Why a restart instead of unloading the old model and loading the new
+     * one in place, which is what this used to do: every combination of
+     * in-process unload+reload was tried and found unreliable on this
+     * device's Hexagon/FastRPC driver, all four of them tracing back to the
+     * same family of `fastrpc_mmap`/"DSP session not released yet" failure,
+     * just surfacing differently each time (see
+     * HANDOFF-cli-tool-and-crash-rootcause.md and
+     * scripts/stress_switch.py, which is how each was reproduced):
+     *
+     *  - QNN -> GenieX: GenieX's create() fails `-100201` (catchable, was
+     *    made rare by [GenieXEngine]'s settle+retry loop, not eliminated).
+     *  - GenieX -> QNN: QNN's device create fails `err 1002`, then its own
+     *    cleanup (`QnnBackend_free`) SIGSEGVs -- a native, un-catchable
+     *    crash. A 2.5x longer settle (2000ms -> 5000ms) did not help.
+     *  - GenieX -> GenieX (two different GGUFs): the cDSP compute process
+     *    itself aborts on the first `llama_decode` after the switch --
+     *    create() succeeds, generation crashes.
+     *  - QNN -> QNN (two different QNN models): `err 1002` on create, same
+     *    as above, except this one never recovers -- every later create in
+     *    that process fails identically, forever.
+     *
+     * Longer waits and retry loops made some of these rarer but fixed none
+     * of them outright. The one thing that was 100% reliable across every
+     * repeated-switch stress run, for every model and every runtime, was a
+     * FRESH process's first load. So a genuine switch does not attempt
+     * create() next to a live session at all -- restart, and let the new
+     * process's first load be a first load, not a second one. JS resumes the
+     * same chat afterward (App.tsx persists the open chat id for exactly
+     * this) and calls loadModel again, which this time has nothing else
+     * resident.
+     *
+     * Returns true if a restart was triggered. The caller must stop
+     * immediately in that case -- [Runtime.getRuntime].exit kills the
+     * process before anything queued after this call would run, but nothing
+     * should be queued after it regardless.
      */
-    private fun switchTo(runtime: Runtime) {
-        val unloaded = when (runtime) {
-            Runtime.GENIE -> (genieX.currentModelId != null).also { genieX.close() }
-            Runtime.GENIEX -> (engine.currentModelId != null).also { engine.close() }
+    private fun switchToOrRestart(modelId: String): Boolean {
+        val current = engine.currentModelId ?: genieX.currentModelId
+        if (current == null || current == modelId) return false
+
+        Log.w(
+            "GenieModule",
+            "model switch $current -> $modelId requires a process restart " +
+                "(in-process switching is unreliable on this device, see HANDOFF)",
+        )
+        val ctx = reactApplicationContext
+        val launchIntent = requireNotNull(ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)) {
+            "no launch intent for ${ctx.packageName}"
         }
-        if (unloaded) {
-            val settleMs = when (runtime) {
-                Runtime.GENIE -> SWITCH_SETTLE_INTO_GENIE_MS
-                Runtime.GENIEX -> SWITCH_SETTLE_INTO_GENIEX_MS
-            }
-            Log.i("GenieModule", "runtime switch: settling ${settleMs}ms for DSP release")
-            try {
-                Thread.sleep(settleMs)
-            } catch (e: InterruptedException) {
-                Thread.currentThread().interrupt()
-            }
+        ctx.startActivity(Intent.makeRestartActivityTask(launchIntent.component))
+        // Fully qualified: this file's own Runtime enum (GENIE/GENIEX) shadows
+        // java.lang.Runtime otherwise.
+        java.lang.Runtime.getRuntime().exit(0)
+        return true
+    }
+
+    /**
+     * Pay [FIRST_LOAD_SETTLE_MS] exactly once per process, right before the
+     * first real model create(). No-ops on every call after the first.
+     */
+    private fun settleBeforeFirstLoad() {
+        if (!firstLoadSettled.compareAndSet(false, true)) return
+        Log.i("GenieModule", "settling ${FIRST_LOAD_SETTLE_MS}ms before this process's first model load")
+        try {
+            Thread.sleep(FIRST_LOAD_SETTLE_MS)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
         }
     }
 
@@ -154,6 +179,8 @@ class GenieModule(reactContext: ReactApplicationContext) :
     fun loadModel(modelId: String, promise: Promise) {
         worker.execute {
             try {
+                if (switchToOrRestart(modelId)) return@execute
+                settleBeforeFirstLoad()
                 val spec = ModelStore.spec(modelId)
                 val t0 = System.currentTimeMillis()
                 var lastPercent = -1
@@ -170,7 +197,6 @@ class GenieModule(reactContext: ReactApplicationContext) :
                     }
                 }
 
-                switchTo(spec.runtime)
                 val contextLength = when (spec.runtime) {
                     Runtime.GENIE -> {
                         engine.ensureModel(modelId, onStaging)
@@ -250,7 +276,12 @@ class GenieModule(reactContext: ReactApplicationContext) :
             })
 
             try {
-                switchTo(spec.runtime)
+                // Not expected on the normal UI path -- the JS side only calls
+                // generate() once loadModel already resolved for this exact
+                // model -- but guarded anyway for callers (the CLI) that skip
+                // straight to generate().
+                if (switchToOrRestart(modelId)) return@execute
+                settleBeforeFirstLoad()
                 val sink = TokenSink { fragment ->
                     // Split as it streams so the UI can show the answer and the
                     // reasoning separately without waiting for the reply to end.
@@ -354,12 +385,18 @@ class GenieModule(reactContext: ReactApplicationContext) :
     /**
      * Entry point for [CliReceiver], the debug-build adb interface described in
      * `HANDOFF-reasoning-tools-fixes.md`. Exercises the exact same
-     * engine/[switchTo]/[busy] path as [generate] -- just with plain Kotlin
-     * types in and a callback out, since there is no JS bridge (and no
+     * engine/[switchToOrRestart]/[busy] path as [generate] -- just with plain
+     * Kotlin types in and a callback out, since there is no JS bridge (and no
      * `ReadableArray`/`Promise`) on this path. Kept as its own method rather
      * than folded into [generate] so the JS-facing method stays untouched: it
      * is the last known-working baseline this whole debugging session is
      * trying not to disturb.
+     *
+     * A model switch here restarts the process exactly like [generate] and
+     * [loadModel] -- which means, unlike before, two `--model` values in one
+     * scripts/genie_cli.py run now cost a full app restart between them, not
+     * an in-process switch. Expected and fine: genie_cli.py already treats a
+     * pid change as `app_crash` and relaunches/continues past it.
      */
     fun runCliTurn(
         chatId: String,
@@ -383,7 +420,8 @@ class GenieModule(reactContext: ReactApplicationContext) :
             fun push() = onToken(splitter.answer, splitter.thoughts, splitter.hasThoughts, status)
 
             try {
-                switchTo(spec.runtime)
+                if (switchToOrRestart(modelId)) return@execute
+                settleBeforeFirstLoad()
                 val sink = TokenSink { fragment -> splitter.append(fragment); push() }
 
                 when (spec.runtime) {
