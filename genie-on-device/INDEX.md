@@ -14,6 +14,7 @@ QCS8550 at ~19.9 tok/s**.
 | **A condensed reusable runbook** (for a new model/chip) | [`.claude/skills/deploy-genie-llm/SKILL.md`](../.claude/skills/deploy-genie-llm/SKILL.md) |
 | **Pick up the ACTIVE task** (Whisper-Base ASR + Llama-3.2-1B voice assistant — Llama is working, Whisper decode loop is next) | [docs/HANDOFF-whisper-llama-voice-assistant.md](docs/HANDOFF-whisper-llama-voice-assistant.md) |
 | Background/alternate path (offline compile of nvidia/canary-qwen-2.5b, paused on a hardware wall) | [docs/HANDOFF-canary-qwen-offline.md](docs/HANDOFF-canary-qwen-offline.md) |
+| **Build/deploy the chat app** (React Native, 5 models, 2 on-device runtimes) | [app-rn/README.md](app-rn/README.md), architecture in [docs/ANDROID-RN-APP.md](docs/ANDROID-RN-APP.md) |
 
 ## Fast path (repeat the known-good setup)
 

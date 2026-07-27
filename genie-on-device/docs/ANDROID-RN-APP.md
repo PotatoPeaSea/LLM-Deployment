@@ -1,25 +1,43 @@
-# Genie Chat (React Native) — three models, many chats
+# Genie Chat (React Native) — five models, two runtimes, many chats
 
-**Written:** 2026-07-21. **Source:** [`app-rn/`](../app-rn).
+**Written:** 2026-07-21. **Updated:** 2026-07-27 (GenieX runtime, GGUF models,
+process-restart-on-switch architecture, reasoning-splitter fix — see the
+sections below marked *2026-07-27*). **Source:** [`app-rn/`](../app-rn),
+build/deploy instructions in [`app-rn/README.md`](../app-rn/README.md).
 **Supersedes the UI of:** [ANDROID-APP.md](ANDROID-APP.md) (the Kotlin/Views app,
-still in `android/`, still builds — it is the smaller reference implementation).
+still in `android/`, still builds — it is the smaller reference implementation,
+GENIE-only, no GenieX).
 
 ## What it is
 
-A React Native front end over the same JNI/Genie C++ layer: Llama-3.2-1B,
-Llama-3.2-3B and Qwen3-4B running on the Hexagon NPU, multiple persisted chats,
-and per-chat brevity and reasoning toggles.
+A React Native front end over **two** on-device inference stacks, five
+models total:
+
+- **GENIE** (QNN context binaries, this file's original scope): Llama-3.2-1B,
+  Llama-3.2-3B, Qwen3-4B. `ChatTemplate` renders the prompt ourselves.
+- **GENIEX** *(2026-07-27)*: Qwen3.5-2B and Gemma 4 E2B, community GGUF
+  weights run through Qualcomm's GenieX SDK (llama.cpp under the hood) on the
+  same NPU. The SDK owns the prompt — it applies the GGUF's own chat template,
+  so `ChatTemplate` is unused for these two. See
+  `HANDOFF-qwen-text-164k.md`/`HANDOFF-qwen35-2b.md` for how this stack was
+  brought up.
+
+Both stacks compete for the same DSP/GPU memory, so **only one model is ever
+resident**, and — as of 2026-07-27 — switching models restarts the whole app
+process rather than swapping in-process (see *Model switching*, below).
 
 ```
 App.tsx  ── chats, settings, navigation
   └─ ChatScreen ── src/genie.ts ── NativeModules.Genie
                                      └─ GenieModule.kt   worker thread, events
-                                        └─ ChatEngine.kt one resident dialog
-                                           └─ libgeniebridge.so ── libGenie.so ── NPU
+                                        ├─ ChatEngine.kt    GENIE:  one resident dialog
+                                        │     └─ libgeniebridge.so ── libGenie.so ── NPU
+                                        └─ GenieXEngine.kt  GENIEX: llama.cpp via GenieX SDK
 ```
 
 Everything below `GenieModule` is shared with the Kotlin app; React Native
-replaced the View layer only.
+replaced the View layer only. (The Kotlin app never got the GenieX runtime —
+it is GENIE-only.)
 
 ## Verified on device (2026-07-21, QCS8550 `kalama`, Android 13)
 
@@ -61,25 +79,42 @@ directly from external storage and will therefore fail on Qwen.
 
 ## Build and run
 
+*(2026-07-27: consolidated into one script.)* From `app-rn/`:
+
+```bash
+npm install
+bash scripts/deploy.sh --models qwen3_4b,gemma4_e2b
+```
+
+See [`app-rn/README.md`](../app-rn/README.md) for the full prerequisites
+(Node, NDK version, adb) and what `--models` expects to find on disk for each
+runtime. The manual steps this replaces, for reference:
+
 ```bash
 cd genie-on-device
 
-./scripts/09_stage_qairt_for_app.sh app-rn/android    # QAIRT libs + headers
+./scripts/09_stage_qairt_for_app.sh app-rn/android    # QAIRT libs + headers --
+                                                        # not needed on a fresh
+                                                        # clone, only when
+                                                        # upgrading QAIRT
 cd app-rn
-npx react-native bundle --platform android --dev false --entry-file index.js \
+node node_modules/.bin/react-native bundle --platform android --dev false --entry-file index.js \
   --bundle-output android/app/src/main/assets/index.android.bundle \
   --assets-dest android/app/src/main/res
-cd android && ./gradlew assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+cd android && ./gradlew installDebug
 
-cd ../.. && ./scripts/10_push_app_model.sh llama_v3_2_1b_instruct_ctx4096 com.geniechatrn
-./scripts/10_push_app_model.sh llama_v3_2_3b_instruct_ctx2048 com.geniechatrn
-./scripts/10_push_app_model.sh qwen3_4b com.geniechatrn
+cd ../.. && bash scripts/10_push_app_model.sh llama_v3_2_1b_instruct_ctx4096 com.geniechatrn
+bash scripts/10_push_app_model.sh qwen3_4b com.geniechatrn
+bash scripts/11_push_gguf_model.sh gemma4_e2b com.geniechatrn   # GenieX/GGUF models use the 11_ script
 ```
 
 Bundling the JS means the APK runs standalone — no Metro, no `adb reverse`,
 which matters on a devkit that isn't always tethered. For UI iteration, run
 `npx react-native start` and use the debug build instead.
+
+> This repo runs with `core.fileMode=false`: a fresh clone checks every
+> `.sh` out non-executable no matter what's in any one working tree, which is
+> why the manual steps above call scripts via `bash` rather than `./`.
 
 Toolchain (installed into `/mnt/ssd/bryan/AI_SMART/tools`): **Node 20.18.1** and
 **NDK 26.1.10909125**. The repo's other NDK (21.4) is too old for RN 0.74.
@@ -89,14 +124,26 @@ Toolchain (installed into `/mnt/ssd/bryan/AI_SMART/tools`): **Node 20.18.1** and
 
 ## Models
 
-Declared in `ModelStore.MODELS`; context length is read from each bundle's
-`genie_config.json` rather than declared, so the two can't drift.
+Declared in `ModelStore.MODELS`. For a GENIE model, context length is read
+from the bundle's `genie_config.json` rather than declared, so the two can't
+drift; a GGUF has no such ceiling (Qwen3.5-2B is trained to 262144), so
+`declaredContextLength` is our own choice, bounded by what the Hexagon DSP
+will actually map (measured on this QCS8550: 176K loads, 192K fails in
+`fastrpc_mmap`; 164K keeps a margin).
 
-| id | template | reasoning | context | bundle | load |
-|---|---|---|---|---|---|
-| `llama_v3_2_1b_instruct_ctx4096` | Llama-3.x | no | 4096 | 1.3GB | 1.25s |
-| `llama_v3_2_3b_instruct_ctx2048` | Llama-3.x | no | 2048 | 2.5GB | 2.07s |
-| `qwen3_4b` | Qwen3 ChatML | yes | 512 | 3.0GB | 1.8-2.3s |
+| id | runtime | template | reasoning | context | bundle | load |
+|---|---|---|---|---|---|---|
+| `llama_v3_2_1b_instruct_ctx4096` | GENIE | Llama-3.x | no | 4096 | 1.3GB | 1.25s |
+| `llama_v3_2_3b_instruct_ctx2048` | GENIE | Llama-3.x | no | 2048 | 2.5GB | 2.07s |
+| `qwen3_4b` | GENIE | Qwen3 ChatML | yes | 512 | 3.0GB | 1.8-2.3s |
+| `qwen3_5_2b` (Qwen3.5-2B) | GENIEX | own (GGUF) | yes | 164,000 | 1.9GB | ~2s |
+| `gemma4_e2b` (Gemma 4 E2B) | GENIEX | own (GGUF) | yes | 32,768 | 2.9GB | ~2-3s |
+
+`qwen3_5_2b` additionally sees images (`supportsImages`) and calls tools
+(`supportsTools` — device info, contacts, calendar, web search; see
+`Tools.kt`). `gemma4_e2b` is text-only, added specifically to test
+GenieX↔GenieX model switching in isolation from the QNN↔GenieX cross-runtime
+switch bugs — see *Model switching*, below.
 
 **Llama-3.2-3B at ctx2048 fits this QCS8550** — verified 2026-07-21, loads in
 2.07s with no `err 1002`, and generated ~200 tokens in 26.6s (~7.5 tok/s, versus
@@ -191,13 +238,15 @@ typing, which is why it went unverified for a while.
 previously hardcoded — inherited from the voice assistant, where one or two
 sentences is right because the reply is spoken. Off lets the model run long.
 
-**Reasoning** (Qwen only) is not a magic word in the user's message; it is what
-follows the assistant header. Left open, Qwen emits `<think>…</think>` first;
-primed with an *empty* think block it answers directly — exactly what the
-official template does for `enable_thinking=false`.
+**Reasoning** (`qwen3_4b`, `qwen3_5_2b`, `gemma4_e2b` — every model with
+`supportsReasoning = true`) is not a magic word in the user's message. For
+`qwen3_4b` (GENIE) it is what follows the assistant header: left open, Qwen
+emits `<think>…</think>` first; primed with an *empty* think block it answers
+directly — exactly what the official template does for
+`enable_thinking=false`.
 
 `ReasoningSplitter` separates the two *as they stream*, so the answer appears
-while reasoning stays behind a disclosure. One wrinkle worth knowing:
+while reasoning stays behind a disclosure. Two wrinkles worth knowing:
 
 > Qwen3-4B at ctx512 often reasons and then stops, never closing `</think>` and
 > never writing a separate answer. Mid-stream that is indistinguishable from
@@ -205,7 +254,55 @@ while reasoning stays behind a disclosure. One wrinkle worth knowing:
 > generation ends. Without it the user gets an empty bubble with the reply
 > hidden behind a disclosure — which is what the first build did.
 
-Reasoning spends the 512-token window fast; expect trims.
+> *(2026-07-27)* The two GENIEX models don't share Qwen3-4B's tag or its
+> in-stream behavior, and both leaked raw reasoning into the visible answer
+> until `ReasoningSplitter` grew two per-model knobs
+> (`ModelStore.thinkOpen`/`thinkClose`/`thinkOpenInStream`):
+> - **Gemma 4 E2B** reasons on a differently-spelled channel — opened with
+>   `<|channel>thought`, closed with `<channel|>` — not Qwen's `<think>`. The
+>   model does write its own opening marker into the stream, same as GENIE.
+> - **Qwen3.5-2B**'s GGUF chat template renders `<think>` directly into the
+>   *prompt* (to force reasoning) rather than leaving it for the model to
+>   generate, so the completion GenieX streams back never contains the
+>   opening tag at all — only `</think>`, if the model gets there.
+>   `thinkOpenInStream = false` tells the splitter to treat the stream as
+>   already inside a think block from the first fragment.
+>
+> Both were confirmed by driving each model live on-device and reading the
+> raw (unsplit) leaked output before fixing the tags.
+
+Reasoning spends the context window fast on the smaller windows (`qwen3_4b`
+at 512, `gemma4_e2b` at 32,768); expect trims sooner with it on.
+
+## Model switching restarts the process *(2026-07-27)*
+
+Every in-process switch combination — QNN↔QNN, GenieX↔GenieX, and
+QNN↔GenieX — was unreliable on this device: DSP session reuse across a model
+swap produced memory-pressure reboots or hangs regardless of which two
+runtimes were involved. The fix that was 100% reliable across every repeated
+stress run (60/60 switches, 0 reboots, across all four combinations) was to
+stop trying to swap in-process at all:
+
+`GenieModule.switchToOrRestart` compares the requested model to whatever the
+resident engine reports as loaded. If they differ, it restarts the whole app
+process (`Intent.makeRestartActivityTask` + `Runtime.exit(0)`) instead of
+calling `create()` next to a live session, and lets the new process's first
+load be a genuine first load. JS resumes into the same chat afterward —
+`App.tsx`/`store.ts` persist the open chat id for exactly this — and calls
+`loadModel` again, which this time has nothing else resident to conflict
+with.
+
+Practical implications:
+
+- A chat is pinned to its model; opening a different chat may cost a full app
+  restart, not just a model swap.
+- The debug CLI (`genie_cli.py`) treats a pid change as the **expected**
+  outcome of a switching turn, not a crash — it detects the new pid coming up
+  and resumes the same logical turn, up to `RESUME_ATTEMPTS` times.
+- `FIRST_LOAD_SETTLE_MS` (`GenieModule.settleBeforeFirstLoad`) pays a
+  fixed delay exactly once per process, before that process's first real
+  model load — cut a GenieX↔GenieX reboot from 16/16-eventually-ok-but-1-reboot
+  down to 24/24 clean.
 
 ## Files
 
@@ -217,11 +314,15 @@ Reasoning spends the 512-token window fast; expect trims.
 | `app-rn/src/genie.ts` | native module wrapper, event→callback plumbing |
 | `app-rn/src/store.ts` | AsyncStorage chats + settings |
 | `app-rn/src/components/` | Bubble (with Thoughts), Composer, Sheet |
-| `…/genie/GenieModule.kt` | RN bridge: worker thread, token + staging events |
-| `…/genie/ChatEngine.kt` | resident dialog, priming, context budget |
-| `…/genie/ChatTemplate.kt` | Llama-3.x + Qwen3 templates, ReasoningSplitter |
-| `…/genie/ModelStore.kt` | model registry, internal staging, config rewrite |
-| `…/cpp/genie_bridge.cpp` | JNI ↔ Genie C API (shared with the Kotlin app) |
+| `…/genie/GenieModule.kt` | RN bridge: worker thread, token + staging events, `switchToOrRestart` |
+| `…/genie/ChatEngine.kt` | GENIE: resident dialog, priming, context budget |
+| `…/genie/GenieXEngine.kt` | *(2026-07-27)* GENIEX: llama.cpp via GenieX SDK, tool-call loop |
+| `…/genie/ChatTemplate.kt` | Llama-3.x + Qwen3 templates, `ReasoningSplitter` |
+| `…/genie/ModelStore.kt` | model registry (both runtimes), internal staging, config rewrite |
+| `…/cpp/genie_bridge.cpp` | JNI ↔ Genie C API (shared with the Kotlin app; GENIE only) |
+| `app-rn/scripts/deploy.sh` | *(2026-07-27)* build + install + push models, one command |
+| `app-rn/scripts/genie_cli.py` | *(2026-07-27)* debug-build adb CLI, no UI needed |
+| `app-rn/scripts/stress_switch.py` | *(2026-07-27)* repeated model-switch stress harness |
 
 ## Still open
 
@@ -229,6 +330,11 @@ Reasoning spends the 512-token window fast; expect trims.
   log-mel front end, the KV-threaded decode loop, and the Whisper detokenizer.
 - Answer quality is the models' own. Qwen3-4B at w4a16/ctx512 refused "name two
   primes under 10" outright in testing.
-- The Kotlin app needs the internal-staging fix before it can load Qwen.
-- No way to delete a staged bundle from inside the app; it's ~3GB of internal
-  storage per model.
+- The Kotlin app never got the GenieX runtime or the internal-staging fix —
+  it is GENIE-only and can't load Qwen from external storage.
+- No way to delete a staged/pushed bundle from inside the app; several GB of
+  device storage per model.
+- `qwen3_5_2b`'s vision path has known model-quality caveats even though it
+  loads and runs — see `app-rn/HANDOFF-qwen-vision.md`.
+- Only verified on one board (QCS8550 "Kalama", Android 13); the two runtimes
+  are chipset-generic but untested elsewhere.
