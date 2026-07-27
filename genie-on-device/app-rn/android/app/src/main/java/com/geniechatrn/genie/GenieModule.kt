@@ -33,8 +33,41 @@ private const val TOOL_PERMISSION_REQUEST = 0x9102
  * How long to let the DSP settle after unloading one runtime before loading the
  * other. The cDSP tears down a runtime's HTP session asynchronously, so the
  * incoming runtime can race the outgoing one for the device -- see [GenieModule.switchTo].
+ *
+ * 700ms was not always enough: reproduced via scripts/genie_cli.py (load
+ * Qwen3-4B/GENIE, then immediately a fresh Qwen3.5-2B/GENIEX chat) hitting
+ * "HTP0 buffer mapping failed ... 0 MiB free" / error -100201 on every one of
+ * [GenieXEngine.CREATE_ATTEMPTS], i.e. the QNN side's HTP memory still wasn't
+ * released 700ms + 3*900ms (3.4s) later. Bumped up front rather than only in
+ * the retry loop, since a longer first wait means fewer retries are needed.
+ * [GenieXEngine.ensureModel] additionally retries if a create still slips
+ * through this window, so this value only needs to make retries rare, not
+ * eliminate them.
  */
-private const val SWITCH_SETTLE_MS = 700L
+private const val SWITCH_SETTLE_INTO_GENIEX_MS = 2000L
+
+/**
+ * Same race as [SWITCH_SETTLE_INTO_GENIEX_MS], opposite direction (GenieX
+ * unloading, QNN loading) -- but with NO retry backstop possible, which is
+ * why this needs a longer, more conservative settle than that direction gets
+ * away with.
+ *
+ * Reproduced via scripts/stress_switch.py cycling qwen3_5_2b -> qwen3_4b: at
+ * 2000ms settle, QnnDevice_create failed with err 1002
+ * ("Transport layer setup failed", itself caused by the DSP queue create
+ * hitting "fastrpc_mmap failed ... tNode->map.fd != fd" -- the same class of
+ * "DSP session not released yet" symptom as -100201, just on the QNN side)
+ * on EVERY one of 15 consecutive cycles. Unlike the GenieX side, this is not
+ * a catchable, retryable error: QNN's own cleanup path (`QnnBackend_free`)
+ * SIGSEGVs while freeing the half-initialized backend immediately after the
+ * failed create, which is a native crash -- unrecoverable, and un-catchable
+ * from Kotlin. [ChatEngine.ensureModel] has no retry loop and cannot get one
+ * for the same reason: there is nothing left to retry once the process is
+ * gone. The only lever here is not entering this failure path in the first
+ * place, hence a longer, one-shot wait rather than a short-wait+retry
+ * strategy.
+ */
+private const val SWITCH_SETTLE_INTO_GENIE_MS = 5000L
 
 class GenieModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -56,15 +89,18 @@ class GenieModule(reactContext: ReactApplicationContext) :
      * Unload whichever runtime is NOT about to be used. Cheap when it is
      * already unloaded, which is the common case.
      *
-     * When it does unload one, it then pauses [SWITCH_SETTLE_MS]. Both runtimes
+     * When it does unload one, it then pauses -- see
+     * [SWITCH_SETTLE_INTO_GENIEX_MS] / [SWITCH_SETTLE_INTO_GENIE_MS] for why
+     * the two directions get different, asymmetric waits. Both runtimes
      * reach the NPU through the same cDSP, which releases an HTP session
      * asynchronously after `close()` returns. If the incoming runtime creates
      * its HTP device before that teardown lands, the create races it: GenieX's
-     * llama.cpp HTP0 create fails with `-100201`, or the load stalls hard enough
-     * that lowmemorykiller reaps the process ("device is not responding"). The
-     * pause fires only on a real switch, so a same-runtime reopen pays nothing;
-     * [GenieXEngine.ensureModel] additionally retries if a create still slips
-     * through the window.
+     * llama.cpp HTP0 create fails with `-100201` (catchable, retried by
+     * [GenieXEngine.ensureModel]), while QNN's device create fails with
+     * `err 1002` and then SIGSEGVs inside its own cleanup (native, NOT
+     * catchable -- [ChatEngine.ensureModel] has no retry loop and can't get
+     * one). The pause fires only on a real switch, so a same-runtime reopen
+     * pays nothing.
      */
     private fun switchTo(runtime: Runtime) {
         val unloaded = when (runtime) {
@@ -72,9 +108,13 @@ class GenieModule(reactContext: ReactApplicationContext) :
             Runtime.GENIEX -> (engine.currentModelId != null).also { engine.close() }
         }
         if (unloaded) {
-            Log.i("GenieModule", "runtime switch: settling ${SWITCH_SETTLE_MS}ms for DSP release")
+            val settleMs = when (runtime) {
+                Runtime.GENIE -> SWITCH_SETTLE_INTO_GENIE_MS
+                Runtime.GENIEX -> SWITCH_SETTLE_INTO_GENIEX_MS
+            }
+            Log.i("GenieModule", "runtime switch: settling ${settleMs}ms for DSP release")
             try {
-                Thread.sleep(SWITCH_SETTLE_MS)
+                Thread.sleep(settleMs)
             } catch (e: InterruptedException) {
                 Thread.currentThread().interrupt()
             }
@@ -299,6 +339,76 @@ class GenieModule(reactContext: ReactApplicationContext) :
             engine.resetConversation()
             genieX.resetConversation()
             promise.resolve(null)
+        }
+    }
+
+    /** Result of [runCliTurn] -- the CLI's equivalent of [generate]'s promise payload. */
+    data class CliTurnResult(
+        val answer: String,
+        val thoughts: String,
+        val hasThoughts: Boolean,
+        val elapsedMs: Long,
+        val toolsUsed: List<String>,
+    )
+
+    /**
+     * Entry point for [CliReceiver], the debug-build adb interface described in
+     * `HANDOFF-reasoning-tools-fixes.md`. Exercises the exact same
+     * engine/[switchTo]/[busy] path as [generate] -- just with plain Kotlin
+     * types in and a callback out, since there is no JS bridge (and no
+     * `ReadableArray`/`Promise`) on this path. Kept as its own method rather
+     * than folded into [generate] so the JS-facing method stays untouched: it
+     * is the last known-working baseline this whole debugging session is
+     * trying not to disturb.
+     */
+    fun runCliTurn(
+        chatId: String,
+        modelId: String,
+        history: List<Message>,
+        userText: String,
+        brevity: Boolean,
+        thinking: Boolean,
+        onToken: (answer: String, thoughts: String, hasThoughts: Boolean, status: String) -> Unit,
+        onDone: (Result<CliTurnResult>) -> Unit,
+    ) {
+        if (!busy.compareAndSet(false, true)) {
+            onDone(Result.failure(IllegalStateException("A generation is already running")))
+            return
+        }
+        worker.execute {
+            val spec = ModelStore.spec(modelId)
+            val splitter = ReasoningSplitter()
+            val t0 = System.currentTimeMillis()
+            var status = ""
+            fun push() = onToken(splitter.answer, splitter.thoughts, splitter.hasThoughts, status)
+
+            try {
+                switchTo(spec.runtime)
+                val sink = TokenSink { fragment -> splitter.append(fragment); push() }
+
+                when (spec.runtime) {
+                    Runtime.GENIE ->
+                        engine.generate(chatId, modelId, history, userText, brevity, thinking, sink)
+                    Runtime.GENIEX ->
+                        genieX.generate(
+                            chatId, modelId, history, userText, emptyList(), brevity, thinking, sink,
+                        ) { note -> status = note; push() }
+                }
+
+                status = ""
+                val (answer, thoughts) = splitter.finish()
+                onDone(Result.success(CliTurnResult(
+                    answer = answer,
+                    thoughts = thoughts,
+                    hasThoughts = thoughts.isNotBlank(),
+                    elapsedMs = System.currentTimeMillis() - t0,
+                    toolsUsed = if (spec.runtime == Runtime.GENIEX) genieX.lastToolsUsed else emptyList(),
+                )))
+            } catch (e: Throwable) {
+                onDone(Result.failure(e))
+            } finally {
+                busy.set(false)
+            }
         }
     }
 

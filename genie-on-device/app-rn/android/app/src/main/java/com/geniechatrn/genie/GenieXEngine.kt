@@ -69,10 +69,17 @@ class GenieXEngine(private val context: Context) {
          * pause was not quite enough. A fresh load succeeds on the first try and
          * never sleeps.
          */
-        private const val CREATE_ATTEMPTS = 3
+        private const val CREATE_ATTEMPTS = 5
 
-        /** Extra DSP-settle between failed create attempts (see [CREATE_ATTEMPTS]). */
-        private const val CREATE_SETTLE_MS = 900L
+        /**
+         * Extra DSP-settle between failed create attempts (see
+         * [CREATE_ATTEMPTS]). Was 900ms/3 attempts; reproduced via
+         * scripts/genie_cli.py that all 3 attempts (2.7s of settling) still
+         * failed identically ("HTP0 buffer mapping failed", "0 MiB free")
+         * right after a QNN->GenieX switch. Bumped both the per-attempt
+         * settle and the attempt count for more total headroom.
+         */
+        private const val CREATE_SETTLE_MS = 1500L
     }
 
     private var wrapper: LlmWrapper? = null
@@ -226,6 +233,43 @@ class GenieXEngine(private val context: Context) {
         val system = spec.systemPrompt + if (brevity) spec.brevityClause else ""
         val messages = mutableListOf<ChatMessage>()
         messages.add(ChatMessage("system", system))
+        if (history.isEmpty()) {
+            // Work around a native crash in this GGUF's embedded Jinja chat
+            // template: applyChatTemplate's renderer aborts the whole process
+            // (uncaught std::invalid_argument, "Unexpected message role.") for
+            // some -- not all -- user text when this is the FIRST real
+            // generation run against a freshly-reset session (right after
+            // ensureModel/active.reset()). The same triggering text (e.g.
+            // "Write an essay about the telephone") renders fine once one
+            // real generation has already completed on this session, and a
+            // synthetic message merely appended to the array WITHOUT actually
+            // running a generation does NOT help (tried first, still
+            // crashed) -- so whatever native state this depends on is set by
+            // actually driving one real generateStreamFlow call, not by the
+            // shape of the `messages` array. This priming reply is discarded,
+            // never shown to the user, never sent to [sink]. See
+            // HANDOFF-reasoning-tools-fixes.md and scripts/genie_cli.py,
+            // which is how this was isolated -- confirmed via repeated
+            // on-device reproduction; root cause in the closed-source SDK not
+            // found (extracted and read the template itself, the bug is not
+            // in the Jinja logic, which never inspects message content to
+            // decide role).
+            val primingReply = runOnce(
+                active,
+                arrayOf(ChatMessage("system", system), ChatMessage("user", "Hi")),
+                null,
+                false,
+                TokenSink {},
+                alreadyEmitted = "",
+            )
+            messages.add(ChatMessage("user", "Hi"))
+            messages.add(
+                ChatMessage(
+                    "assistant",
+                    Tools.stripCalls(primingReply).trim().ifBlank { "Hello! How can I help you today?" },
+                ),
+            )
+        }
         for (message in history) {
             messages.add(ChatMessage(message.role.wire, message.content))
         }
