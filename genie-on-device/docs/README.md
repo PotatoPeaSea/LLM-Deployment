@@ -17,13 +17,16 @@ which may conflict with other projects on the host.
   commands, and a full "what didn't work + why + fix" section.
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — how the components interact, the data
   flow, and why context length is the memory knob.
-- **[CHATBOT.md](CHATBOT.md)** — the multi-turn chatbot + voice assistant built on
-  top of this (`scripts/07_chatbot.py`): Llama-3.2-1B + Whisper-Base, both on the
-  NPU, ~2s/turn. Also documents why tool calling is built but off by default.
-- **[USAGE.md](USAGE.md)** — how to actually run the chatbot: prerequisites,
-  per-board setup, every flag, in-chat commands, and a troubleshooting table.
+- **[ANDROID-RN-APP.md](ANDROID-RN-APP.md)** — the actual chat app built on
+  top of this export pipeline (`../app-rn/`): five models, two on-device
+  runtimes, build/deploy instructions in `../app-rn/README.md`.
 - **`.claude/skills/deploy-genie-llm/SKILL.md`** — condensed reusable runbook for
   applying this to a new model/chip.
+
+> This branch (`release/app-rn`) dropped the standalone chatbot/voice-assistant
+> CLI (`scripts/07_chatbot.py`, `CHATBOT.md`, `USAGE.md`) and the older
+> Kotlin/Views reference app (`android/`, `ANDROID-APP.md`) — neither is part
+> of the app-rn release. They still exist on `debug`/`master`.
 
 ## Key findings from setting this up (read before changing models)
 

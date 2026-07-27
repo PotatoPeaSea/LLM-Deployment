@@ -58,33 +58,34 @@ pinned to whichever model it was started with.
 
 ## Deploy to a device
 
+The fastest path to a working app needs no AI Hub account, no Docker, and no
+cloud compile — just download two GGUF files (below) and:
+
 ```bash
 cd genie-on-device/app-rn
 npm install
-bash scripts/deploy.sh --models qwen3_4b          # build + install + push one model
-bash scripts/deploy.sh --models all               # push every model (~11GB total)
-bash scripts/deploy.sh --skip-build --models gemma4_e2b   # already installed, just push
+bash scripts/deploy.sh --models gguf     # build + install + push qwen3_5_2b + gemma4_e2b
 ```
 
 This bundles the JS (into `android/app/src/main/assets/index.android.bundle`
 — the APK runs standalone, no Metro server needed on a devkit that isn't
-always tethered), runs `gradlew installDebug`, pushes whichever model
-bundles you named, and launches the app. See `bash scripts/deploy.sh --help`
-for the full option list, and the script's own header comments for exactly
-what each step does and why.
+always tethered), runs `gradlew installDebug`, pushes the named model(s), and
+launches the app. `deploy.sh` **never triggers a cloud compile** — it only
+ships bundles/weights that already exist on disk. See
+`bash scripts/deploy.sh --help` for every option, and the script's own header
+comments for exactly what each step does and why.
 
-**Deploying a model requires the model already exists locally** — this
-script does not build models, only ships an already-built one to the
-device:
+```bash
+bash scripts/deploy.sh --skip-build --models gemma4_e2b   # already installed, just push one
+bash scripts/deploy.sh --models all                       # push every model (~11GB total,
+                                                            # needs GENIE bundles exported first)
+```
 
-- **GENIE models** (`llama_*`, `qwen3_4b`) come from the cloud-compile
-  pipeline in `../scripts/04_export_model.sh` (needs a Qualcomm AI Hub
-  account). See [../docs/REPRODUCTION.md](../docs/REPRODUCTION.md). Exported
-  bundles land in `../workspace/output/<model-id>/` — that's where
-  `deploy.sh` looks for them.
-- **GENIEX models** (`qwen3_5_2b`, `gemma4_e2b`) are plain GGUF downloads,
-  no export step. Fetch a Q4_0 quant and drop it in
-  `../workspace/gguf/<model-id>/`:
+**Getting the model weights, per runtime:**
+
+- **GENIEX models** (`qwen3_5_2b`, `gemma4_e2b`) — the `--models gguf` path
+  above — are plain GGUF downloads, no export step. Fetch a Q4_0 quant and
+  drop it in `../workspace/gguf/<model-id>/`:
   - `qwen3_5_2b` needs `Qwen3.5-2B-Q4_0.gguf` (~1.2GB) and
     `mmproj-F16.gguf` (~670MB, the vision projector).
   - `gemma4_e2b` needs `gemma-4-E2B-it-Q4_0.gguf` (~2.9GB) — verified
@@ -93,6 +94,13 @@ device:
   Neither `*.gguf` file is tracked in git (see `.gitignore`) — they're
   multi-GB binaries, and `deploy.sh`/`11_push_gguf_model.sh` push straight
   from `workspace/gguf/` to the device's app-private storage.
+
+- **GENIE models** (`llama_*`, `qwen3_4b`) come from the cloud-compile
+  pipeline in `../scripts/04_export_model.sh` (needs a Qualcomm AI Hub
+  account and Docker). See [../docs/REPRODUCTION.md](../docs/REPRODUCTION.md).
+  Exported bundles land in `../workspace/output/<model-id>/` — that's where
+  `deploy.sh` looks for them. There is no shortcut around this step; it's a
+  real cloud compile and takes a few minutes per model/context-length.
 
 ## Iterating on the UI
 
@@ -119,8 +127,8 @@ Both talk to `CliReceiver`, which only exists in debug builds — they need
 
 - Only tested on one board (QCS8550 "Kalama", Android 13).
 - `qwen3_5_2b`'s vision path (`supportsImages`) is real but has known model
-  quality caveats — see `HANDOFF-qwen-vision.md`.
+  quality caveats — see `handoffs/HANDOFF-qwen-vision.md`.
 - No way to delete a staged/pushed model bundle from inside the app; each is
   several GB of on-device storage.
-- Full known-issues and root-cause history: the `HANDOFF-*.md` files in this
-  directory, indexed from [../docs/ANDROID-RN-APP.md](../docs/ANDROID-RN-APP.md#still-open).
+- Full known-issues and root-cause history: the `handoffs/HANDOFF-*.md`
+  files, indexed from [../docs/ANDROID-RN-APP.md](../docs/ANDROID-RN-APP.md#still-open).

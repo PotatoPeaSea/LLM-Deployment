@@ -19,9 +19,23 @@
 #
 # Usage:
 #   ./scripts/deploy.sh                              # build + install only
-#   ./scripts/deploy.sh --models qwen3_4b,gemma4_e2b  # + push these models
-#   ./scripts/deploy.sh --models all                  # + push every model
+#   ./scripts/deploy.sh --models gguf                 # + push qwen3_5_2b + gemma4_e2b --
+#                                                      # the two GGUF models, no cloud
+#                                                      # compile needed, just a download.
+#                                                      # This is the fastest way to get a
+#                                                      # working app: no AI Hub account, no
+#                                                      # Docker, no cloud export step.
+#   ./scripts/deploy.sh --models qwen3_4b,gemma4_e2b  # + push these specific models
+#   ./scripts/deploy.sh --models all                  # + push every model (needs GENIE
+#                                                      # bundles already exported -- see
+#                                                      # ../../scripts/04_export_model.sh)
 #   ./scripts/deploy.sh --skip-build --models qwen3_4b  # push only, app already installed
+#
+# Nothing here ever invokes the cloud-compile pipeline -- it only pushes
+# bundles/weights that already exist on disk. Left with no --models at all,
+# it just builds and installs the empty app shell (no working models loaded
+# yet); --models gguf is the quickest path to something you can actually chat
+# with.
 #
 # Env overrides:
 #   PKG        installed package id (default: com.geniechatrn)
@@ -49,15 +63,15 @@ done
 # -- there is no way to read the Kotlin registry from bash, so this is the one
 # place that duplicates it.
 ALL_MODELS="llama_v3_2_1b_instruct_ctx4096 llama_v3_2_3b_instruct_ctx2048 qwen3_4b qwen3_5_2b gemma4_e2b"
+GGUF_MODELS="qwen3_5_2b gemma4_e2b"
 gguf_model() { case "$1" in qwen3_5_2b|gemma4_e2b) return 0 ;; *) return 1 ;; esac; }
 
-if [ "$MODELS" = "all" ]; then
-  MODEL_LIST="$ALL_MODELS"
-elif [ -n "$MODELS" ]; then
-  MODEL_LIST="$(echo "$MODELS" | tr ',' ' ')"
-else
-  MODEL_LIST=""
-fi
+case "$MODELS" in
+  all) MODEL_LIST="$ALL_MODELS" ;;
+  gguf) MODEL_LIST="$GGUF_MODELS" ;;
+  "") MODEL_LIST="" ;;
+  *) MODEL_LIST="$(echo "$MODELS" | tr ',' ' ')" ;;
+esac
 
 adb get-state >/dev/null 2>&1 || { echo "No adb device attached." >&2; exit 1; }
 

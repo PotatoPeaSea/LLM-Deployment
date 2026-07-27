@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive GenieChatRN's debug build from the host, without the JS UI or a screenshot.
 
-Why this exists: see ../HANDOFF-reasoning-tools-fixes.md. Some of this app's
+Why this exists: see ../handoffs/HANDOFF-reasoning-tools-fixes.md. Some of this app's
 bugs are a full device reboot, not just an app-level crash, and reproducing
 one by hand -- typing a prompt, screenshotting, typing the next -- is slow
 and the on-device logcat ring buffer is wiped by the time adb reconnects

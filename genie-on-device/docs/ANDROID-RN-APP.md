@@ -4,9 +4,9 @@
 process-restart-on-switch architecture, reasoning-splitter fix — see the
 sections below marked *2026-07-27*). **Source:** [`app-rn/`](../app-rn),
 build/deploy instructions in [`app-rn/README.md`](../app-rn/README.md).
-**Supersedes the UI of:** [ANDROID-APP.md](ANDROID-APP.md) (the Kotlin/Views app,
-still in `android/`, still builds — it is the smaller reference implementation,
-GENIE-only, no GenieX).
+**Supersedes the UI of:** the older Kotlin/Views app (GENIE-only, no GenieX)
+— not part of this release branch; see `ANDROID-APP.md`/`android/` on
+`debug`/`master`.
 
 ## What it is
 
@@ -19,8 +19,8 @@ models total:
   weights run through Qualcomm's GenieX SDK (llama.cpp under the hood) on the
   same NPU. The SDK owns the prompt — it applies the GGUF's own chat template,
   so `ChatTemplate` is unused for these two. See
-  `HANDOFF-qwen-text-164k.md`/`HANDOFF-qwen35-2b.md` for how this stack was
-  brought up.
+  `app-rn/handoffs/HANDOFF-qwen-text-164k.md`/`HANDOFF-qwen35-2b.md` for how
+  this stack was brought up.
 
 Both stacks compete for the same DSP/GPU memory, so **only one model is ever
 resident**, and — as of 2026-07-27 — switching models restarts the whole app
@@ -35,9 +35,10 @@ App.tsx  ── chats, settings, navigation
                                         └─ GenieXEngine.kt  GENIEX: llama.cpp via GenieX SDK
 ```
 
-Everything below `GenieModule` is shared with the Kotlin app; React Native
-replaced the View layer only. (The Kotlin app never got the GenieX runtime —
-it is GENIE-only.)
+Everything below `GenieModule` started as a duplicate of the older Kotlin
+app's equivalent layer (not part of this release branch — see `debug`); React
+Native replaced the View layer only. That Kotlin app never got the GenieX
+runtime and stayed GENIE-only.
 
 ## Verified on device (2026-07-21, QCS8550 `kalama`, Android 13)
 
@@ -335,6 +336,6 @@ Practical implications:
 - No way to delete a staged/pushed bundle from inside the app; several GB of
   device storage per model.
 - `qwen3_5_2b`'s vision path has known model-quality caveats even though it
-  loads and runs — see `app-rn/HANDOFF-qwen-vision.md`.
+  loads and runs — see `app-rn/handoffs/HANDOFF-qwen-vision.md`.
 - Only verified on one board (QCS8550 "Kalama", Android 13); the two runtimes
   are chipset-generic but untested elsewhere.
