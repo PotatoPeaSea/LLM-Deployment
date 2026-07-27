@@ -70,22 +70,21 @@ bash scripts/deploy.sh --models gguf     # build + install + push qwen3_5_2b + g
 This bundles the JS (into `android/app/src/main/assets/index.android.bundle`
 — the APK runs standalone, no Metro server needed on a devkit that isn't
 always tethered), runs `gradlew installDebug`, pushes the named model(s), and
-launches the app. `deploy.sh` **never triggers a cloud compile** — it only
-ships bundles/weights that already exist on disk. See
-`bash scripts/deploy.sh --help` for every option, and the script's own header
-comments for exactly what each step does and why.
+launches the app. See `bash scripts/deploy.sh --help` for every option, and
+the script's own header comments for exactly what each step does and why.
 
 ```bash
 bash scripts/deploy.sh --skip-build --models gemma4_e2b   # already installed, just push one
-bash scripts/deploy.sh --models all                       # push every model (~11GB total,
-                                                            # needs GENIE bundles exported first)
+bash scripts/deploy.sh --models all                       # push every model (~11GB total)
 ```
 
 **Getting the model weights, per runtime:**
 
 - **GENIEX models** (`qwen3_5_2b`, `gemma4_e2b`) — the `--models gguf` path
-  above — are plain GGUF downloads, no export step. Fetch a Q4_0 quant and
-  drop it in `../workspace/gguf/<model-id>/`:
+  above — are plain GGUF downloads, no export step, and `deploy.sh` doesn't
+  fetch them for you (no confirmed download URL for every model is recorded
+  in this repo's history, so this step stays manual on purpose). Fetch a
+  Q4_0 quant and drop it in `../workspace/gguf/<model-id>/`:
   - `qwen3_5_2b` needs `Qwen3.5-2B-Q4_0.gguf` (~1.2GB) and
     `mmproj-F16.gguf` (~670MB, the vision projector).
   - `gemma4_e2b` needs `gemma-4-E2B-it-Q4_0.gguf` (~2.9GB) — verified
@@ -95,12 +94,19 @@ bash scripts/deploy.sh --models all                       # push every model (~1
   multi-GB binaries, and `deploy.sh`/`11_push_gguf_model.sh` push straight
   from `workspace/gguf/` to the device's app-private storage.
 
-- **GENIE models** (`llama_*`, `qwen3_4b`) come from the cloud-compile
-  pipeline in `../scripts/04_export_model.sh` (needs a Qualcomm AI Hub
-  account and Docker). See [../docs/REPRODUCTION.md](../docs/REPRODUCTION.md).
-  Exported bundles land in `../workspace/output/<model-id>/` — that's where
-  `deploy.sh` looks for them. There is no shortcut around this step; it's a
-  real cloud compile and takes a few minutes per model/context-length.
+- **GENIE models** (`llama_*`, `qwen3_4b`) — **`deploy.sh` runs this step for
+  you** when the bundle isn't already in `../workspace/output/<model-id>/`:
+  it builds the Docker toolchain image if needed, configures your AI Hub
+  token if needed, and runs the cloud compile itself
+  (`../scripts/01_build_image.sh`/`02_configure_hub.sh`/`04_export_model.sh`
+  under the hood). Needs Docker and, the first time only,
+  `AI_HUB_API_TOKEN` (from https://aihub.qualcomm.com → Account → Settings →
+  API Token); `llama_v3_2_3b_instruct_ctx2048` additionally needs `HF_TOKEN`
+  (`meta-llama` is a gated Hugging Face repo). Missing either fails fast with
+  a clear message — this is a real cloud compile, roughly an hour the first
+  time per model, and `deploy.sh` says so before starting. See
+  [../docs/REPRODUCTION.md](../docs/REPRODUCTION.md) for the full story, or
+  to export manually instead.
 
 ## Iterating on the UI
 

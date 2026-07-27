@@ -16,11 +16,20 @@
 # "QCS8550 (Proxy)").
 #
 # Non-flagship chipsets are typically AI Hub "proxy" compile targets with no
-# hosted physical device, so this defaults to --skip-profiling
-# --skip-inferencing (AI Hub cannot run cloud-hosted perf/inference tests on
-# a proxy target -- there's no real device behind it to run them on). Add
-# your own extra args at the end to override, e.g. drop those flags for a
-# flagship device that does have a hosted device farm.
+# hosted physical device, so this defaults to --skip-profiling (AI Hub cannot
+# run cloud-hosted perf tests on a proxy target -- there's no real device
+# behind it to run them on). Add your own extra args at the end to override,
+# e.g. drop that flag for a flagship device that does have a hosted device
+# farm.
+#
+# 01_build_image.sh installs `qai-hub-models` unpinned, so its CLI flags can
+# and do drift between image rebuilds -- confirmed 2026-07-27: an earlier
+# version of this script also hardcoded --skip-inferencing, which a later
+# rebuild's qai-hub-models no longer recognizes at all ("unrecognized
+# arguments"). If export fails with an unrecognized/removed argument, run
+# `qai-hub-models export <model_id> --help` inside the container (see
+# docs/README.md's own warning about this) before assuming this script is
+# right.
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/00_env.sh"
 
@@ -36,7 +45,7 @@ docker_run "${IMAGE_NAME}:latest" \
   qai-hub-models export "${MODEL_ID}" \
     --runtime "${RUNTIME}" \
     --chipset "${CHIPSET}" \
-    --skip-profiling --skip-inferencing \
+    --skip-profiling \
     --output-dir "${MODEL_OUTPUT_DIR}" \
     "${EXTRA_ARGS[@]}"
 

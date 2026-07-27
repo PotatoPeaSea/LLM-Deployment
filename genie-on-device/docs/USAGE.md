@@ -45,9 +45,7 @@ bash scripts/deploy.sh --models gguf
 ```
 
 That one command bundles the JS, runs `gradlew installDebug`, pushes both
-GGUF models to the device, and launches the app. `deploy.sh` never triggers
-a cloud compile on its own — it only pushes bundles/weights that already
-exist on disk.
+GGUF models to the device, and launches the app.
 
 ## 3. Deployment instructions, in full
 
@@ -56,28 +54,38 @@ bash scripts/deploy.sh                                    # build + install only
 bash scripts/deploy.sh --models qwen3_4b                  # + push one specific model
 bash scripts/deploy.sh --models qwen3_4b,gemma4_e2b       # + push several, comma-separated
 bash scripts/deploy.sh --models gguf                      # + push both GGUF models (no export needed)
-bash scripts/deploy.sh --models all                       # + push every model (~11GB; GENIE
-                                                            #   bundles must already be exported)
+bash scripts/deploy.sh --models all                       # + push every model (~11GB total)
 bash scripts/deploy.sh --skip-build --models gemma4_e2b   # app already installed, just push
 ```
 
 Env overrides: `PKG` (installed package id, default `com.geniechatrn`),
-`VARIANT` (gradle build variant, default `Debug`). Run
-`bash scripts/deploy.sh --help` for the option list with explanations, or
-read the script itself — every step is commented with what it does and why.
+`VARIANT` (gradle build variant, default `Debug`), `CHIPSET` (AI Hub chipset
+for a GENIE export, default `qualcomm-qcs8550-proxy`), `AI_HUB_API_TOKEN` /
+`HF_TOKEN` (see §4). Run `bash scripts/deploy.sh --help` for the option list
+with explanations, or read the script itself — every step is commented with
+what it does and why.
 
 Under the hood `deploy.sh` dispatches each model to whichever push script
-matches its runtime:
+matches its runtime — and for a GENIE model with no bundle on disk yet,
+**runs the cloud-compile pipeline first**, automatically:
 
-| Runtime | Models | Push script | Source of weights |
+| Runtime | Models | If no bundle yet | Push script |
 |---|---|---|---|
-| GENIE (QNN) | `llama_v3_2_1b_instruct_ctx4096`, `llama_v3_2_3b_instruct_ctx2048`, `qwen3_4b` | `../scripts/10_push_app_model.sh` | cloud-compiled bundle in `../workspace/output/<id>/` |
-| GENIEX (GGUF) | `qwen3_5_2b`, `gemma4_e2b` | `../scripts/11_push_gguf_model.sh` | downloaded `.gguf` in `../workspace/gguf/<id>/` |
+| GENIE (QNN) | `llama_v3_2_1b_instruct_ctx4096`, `llama_v3_2_3b_instruct_ctx2048`, `qwen3_4b` | builds the Docker image, configures the AI Hub token, runs the cloud compile (`ensure_genie_bundle` in `deploy.sh`) | `../scripts/10_push_app_model.sh` |
+| GENIEX (GGUF) | `qwen3_5_2b`, `gemma4_e2b` | nothing automatic — see §4, no confirmed download URL is recorded for every model so this step stays manual | `../scripts/11_push_gguf_model.sh` |
+
+So `bash scripts/deploy.sh --models qwen3_4b` is a genuine one-command path
+from a bare clone **if** Docker and an AI Hub token are available — it is not
+"assumes you already ran the export pipeline by hand." It's still a real
+cloud compile costing real time (~1 hour) the first time for each model, and
+it says so loudly before starting.
 
 ## 4. Getting model weights
 
 **GENIEX (GGUF) models** — no export, just a download, dropped into
-`workspace/gguf/<model-id>/`:
+`workspace/gguf/<model-id>/`. This part stays manual: no confirmed download
+URL for every model is recorded in this repo's history, so `deploy.sh`
+doesn't guess one.
 
 - `qwen3_5_2b`: `Qwen3.5-2B-Q4_0.gguf` (~1.2GB) + `mmproj-F16.gguf` (~670MB,
   the vision projector — this model sees images and calls tools).
@@ -88,7 +96,33 @@ Neither `*.gguf` is tracked in git (see `.gitignore` — model weights never
 are); `deploy.sh`/`11_push_gguf_model.sh` push straight from
 `workspace/gguf/` to the device's app-private storage.
 
-**GENIE (QNN) models** need a real cloud compile first — no shortcut:
+**GENIE (QNN) models** — `deploy.sh` runs this part for you automatically
+when the bundle isn't already in `workspace/output/<model-id>/`. What it
+needs to do that:
+
+- **Docker**, to run the toolchain image.
+- **`AI_HUB_API_TOKEN`** — only the first time ever (once
+  `workspace/qai_hub_config/client.ini` exists, it's reused). Get one from
+  https://aihub.qualcomm.com → Account → Settings → API Token.
+- **`HF_TOKEN`**, only for `llama_v3_2_3b_instruct_ctx2048` — `meta-llama` is
+  a gated Hugging Face repo. A token without access to that repo will fail
+  the export with a clear error.
+
+```bash
+AI_HUB_API_TOKEN=... bash scripts/deploy.sh --models qwen3_4b
+HF_TOKEN=... AI_HUB_API_TOKEN=... bash scripts/deploy.sh --models llama_v3_2_3b_instruct_ctx2048
+```
+
+Missing Docker or a token fails fast with an explicit message rather than
+hanging — neither can be fetched automatically. Expect on the order of an
+hour end to end the first time per model (mostly cloud compile + a one-time
+large checkpoint download that's cached for later re-exports). Full
+step-by-step, including the exact chipset/context-length gotchas for
+QCS8550 and what to do if `qai-hub-models`' CLI flags have drifted again
+(it's installed unpinned — this has already happened once), is in
+[REPRODUCTION.md](REPRODUCTION.md).
+
+To export manually instead (e.g. a different context length):
 
 ```bash
 cd genie-on-device
@@ -96,14 +130,6 @@ cd genie-on-device
 ./scripts/02_configure_hub.sh <AI_HUB_API_TOKEN>
 ./scripts/04_export_model.sh qwen3_4b qualcomm-qcs8550-proxy geniex_qairt --context-lengths 512
 ```
-
-Needs a Qualcomm AI Hub account and Docker; takes on the order of an hour
-end to end (mostly cloud compile + a one-time 17.8GB checkpoint download).
-Full step-by-step, including the exact chipset/context-length gotchas for
-QCS8550, is in [REPRODUCTION.md](REPRODUCTION.md). The result lands in
-`workspace/output/<model-id>/`, which is exactly where `deploy.sh` looks for
-it — once it's there, `bash scripts/deploy.sh --models qwen3_4b` from
-`app-rn/` picks it up like any other model.
 
 ## 5. Iterating on the UI
 

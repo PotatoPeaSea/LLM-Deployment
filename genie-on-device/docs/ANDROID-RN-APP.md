@@ -151,17 +151,23 @@ switch bugs — see *Model switching*, below.
 the 1B's ~2s turns). Its largest shard is **1.12GB**, bigger than the Qwen shard
 that fails from FUSE storage, so it depends on internal staging too.
 
-Exporting it needed two deviations from `04_export_model.sh`: the 3B **rejects
-`--skip-inferencing`** (which that script hardcodes), and `meta-llama` is a
-gated repo, so `HF_TOKEN` must be set. The invocation that worked:
+Exporting it needs one deviation: `meta-llama` is a gated repo, so `HF_TOKEN`
+must be set. (An earlier version of this doc also called out the 3B rejecting
+`--skip-inferencing` -- that flag has since been dropped from
+`04_export_model.sh` entirely, 2026-07-27, after `qai-hub-models`' unpinned
+CLI stopped recognizing it for every model, not just this one. See that
+script's own header for the story.) The invocation that worked:
 
 ```bash
 export HF_TOKEN=...
-source scripts/00_env.sh
-docker_run "${IMAGE_NAME}:latest" qai-hub-models export llama_v3_2_3b_instruct \
-  --runtime geniex_qairt --chipset qualcomm-qcs8550-proxy --skip-profiling \
+./scripts/04_export_model.sh llama_v3_2_3b_instruct qualcomm-qcs8550-proxy geniex_qairt \
   --context-lengths 2048 --output-dir /workspace/output/llama_v3_2_3b_instruct_ctx2048
 ```
+
+`app-rn/scripts/deploy.sh` now runs exactly this automatically (Docker image
+build, AI Hub token, the export itself) when a GENIE model's bundle isn't on
+disk yet -- see `ensure_genie_bundle` in that script, or
+[USAGE.md](USAGE.md).
 
 Qwen is the **ctx512** export deliberately — the longer exports don't fit this
 QCS8550. Adding a model is a row here plus a `ChatTemplate`.
