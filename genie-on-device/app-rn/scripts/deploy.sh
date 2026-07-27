@@ -174,7 +174,13 @@ esac
 adb get-state >/dev/null 2>&1 || { echo "No adb device attached." >&2; exit 1; }
 
 if [ "$SKIP_BUILD" -eq 0 ]; then
-  command -v node >/dev/null 2>&1 || { echo "node not found -- install Node 20.x first." >&2; exit 1; }
+  command -v node >/dev/null 2>&1 || {
+    echo "node not found. Install Node 20.x, e.g. on Ubuntu/Debian:" >&2
+    echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -" >&2
+    echo "  sudo apt-get install -y nodejs" >&2
+    echo "then re-run this script." >&2
+    exit 1
+  }
 
   cd "$APP_DIR"
   if [ ! -d node_modules ]; then
