@@ -18,7 +18,7 @@ export type Message = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  /** Qwen3 reasoning, kept out of `content` so it never re-enters the prompt. */
+  /** Model reasoning, kept out of `content` so it never re-enters the prompt. */
   thoughts?: string;
   elapsedMs?: number;
   /**

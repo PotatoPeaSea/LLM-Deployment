@@ -261,7 +261,7 @@ class GenieModule(reactContext: ReactApplicationContext) :
 
         worker.execute {
             val spec = ModelStore.spec(modelId)
-            val splitter = ReasoningSplitter()
+            val splitter = ReasoningSplitter(spec.thinkOpen, spec.thinkClose, spec.thinkOpenInStream)
             val t0 = System.currentTimeMillis()
             var status = ""
 
@@ -414,7 +414,7 @@ class GenieModule(reactContext: ReactApplicationContext) :
         }
         worker.execute {
             val spec = ModelStore.spec(modelId)
-            val splitter = ReasoningSplitter()
+            val splitter = ReasoningSplitter(spec.thinkOpen, spec.thinkClose, spec.thinkOpenInStream)
             val t0 = System.currentTimeMillis()
             var status = ""
             fun push() = onToken(splitter.answer, splitter.thoughts, splitter.hasThoughts, status)

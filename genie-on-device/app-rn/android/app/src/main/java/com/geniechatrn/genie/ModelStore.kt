@@ -37,6 +37,21 @@ data class ModelSpec(
     val template: ChatTemplate,
     /** Qwen3 can reason on demand; the Llamas have no such mode. */
     val supportsReasoning: Boolean,
+    /**
+     * Markers [ReasoningSplitter] uses to pull thinking out of the reply stream.
+     * Only meaningful when [supportsReasoning] is true. Qwen's `<think>` /
+     * `</think>` convention is the default; models with a different reasoning
+     * channel (e.g. Gemma 4's) override it.
+     */
+    val thinkOpen: String = "<think>",
+    val thinkClose: String = "</think>",
+    /**
+     * False if this model's chat template renders the opening tag into the
+     * PROMPT rather than leaving it for the model to generate, so it never
+     * appears in the completion stream ReasoningSplitter sees (confirmed
+     * on-device for qwen3_5_2b -- see its override for the raw evidence).
+     */
+    val thinkOpenInStream: Boolean = true,
     val note: String,
     /**
      * System prompt, per model rather than global.
@@ -123,6 +138,12 @@ object ModelStore {
             // GGUF. Kept non-null so the spec type stays uniform.
             template = ChatTemplate.Qwen3,
             supportsReasoning = true,
+            // Confirmed on-device: with thinking on, the GGUF's own Jinja
+            // template renders "<think>\n" straight into the prompt to force
+            // reasoning, so the completion never contains the literal open tag
+            // -- only "</think>" leaked into the visible bubble with no
+            // Thoughts disclosure at all, until this override.
+            thinkOpenInStream = false,
             note = "164K context, sees images, uses tools",
             // This one has room to spare, so it gets the prompt the others
             // cannot afford -- and it has to be told about its tools.
@@ -147,6 +168,13 @@ object ModelStore {
             // template.
             template = ChatTemplate.Qwen3,
             supportsReasoning = true,
+            // Gemma 4 does not use Qwen's <think>/</think> convention -- it
+            // reasons on a "thought" channel, opened with <|channel>thought and
+            // closed with <channel|>. Without this override ReasoningSplitter
+            // never finds the markers and the reasoning leaks straight into the
+            // visible answer (see HANDOFF-cli-tool-and-crash-rootcause.md).
+            thinkOpen = "<|channel>thought",
+            thinkClose = "<channel|>",
             note = "Second GenieX/GGUF model -- added to test GenieX<->GenieX " +
                 "switching (same runtime, different model) in isolation from " +
                 "the QNN<->GenieX cross-runtime switch bugs. See " +

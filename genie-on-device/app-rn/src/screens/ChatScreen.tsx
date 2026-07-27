@@ -243,7 +243,7 @@ export function ChatScreen({
           label="Reasoning"
           hint={
             model?.supportsReasoning
-              ? 'Qwen3 thinks before answering. Slower, and it spends context.'
+              ? `${model?.name ?? 'This model'} thinks before answering. Slower, and it spends context.`
               : `${model?.name ?? 'This model'} has no reasoning mode.`
           }
           value={settings.thinking && !!model?.supportsReasoning}
