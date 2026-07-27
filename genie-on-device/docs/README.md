@@ -1,8 +1,20 @@
 # On-device LLM deployment via Qualcomm AI Hub Genie (QCS8550)
 
-Deploys an LLM from Qualcomm AI Hub Models to an Android device on a QCS8550
-(codename `kalama`) chipset, using the QNN/Genie NPU runtime described in
+This is the cloud-compile pipeline that turns an AI Hub model into a bundle
+that runs on a QCS8550's (codename `kalama`) Hexagon NPU, using the QNN/Genie
+runtime described in
 https://github.com/qualcomm/ai-hub-apps/tree/main/tutorials/llm_on_genie.
+Findings and gotchas below are from getting that pipeline working end to end.
+
+**Current app status:** this pipeline now feeds a real shipped product —
+**[GenieChatRN](../app-rn)**, a React Native chat app with five models across
+*two* on-device runtimes (this pipeline's GENIE/QNN, plus GenieX/llama.cpp for
+GGUF models that need no cloud compile at all). See
+[ANDROID-RN-APP.md](ANDROID-RN-APP.md) for the app's architecture and
+[USAGE.md](USAGE.md) for how to build and deploy it. Everything else in this
+file is about producing the GENIE bundles three of those five models need —
+`genie-t2t-run`, the CLI this pipeline was originally built around, still
+works too and is documented in REPRODUCTION.md §5-6.
 
 All host-side tooling runs inside a Docker container (see `docker/Dockerfile`)
 so nothing is installed into the machine's global Python environment. The
@@ -17,16 +29,19 @@ which may conflict with other projects on the host.
   commands, and a full "what didn't work + why + fix" section.
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — how the components interact, the data
   flow, and why context length is the memory knob.
-- **[ANDROID-RN-APP.md](ANDROID-RN-APP.md)** — the actual chat app built on
-  top of this export pipeline (`../app-rn/`): five models, two on-device
-  runtimes, build/deploy instructions in `../app-rn/README.md`.
+- **[USAGE.md](USAGE.md)** — quick start and deployment instructions for the
+  app (`../app-rn/`): prerequisites, the no-cloud-compile fast path, every
+  `deploy.sh` option, and a troubleshooting table.
+- **[ANDROID-RN-APP.md](ANDROID-RN-APP.md)** — the app's architecture: five
+  models, two on-device runtimes, the debugging history behind the current
+  design.
 - **`.claude/skills/deploy-genie-llm/SKILL.md`** — condensed reusable runbook for
   applying this to a new model/chip.
 
 > This branch (`release/app-rn`) dropped the standalone chatbot/voice-assistant
-> CLI (`scripts/07_chatbot.py`, `CHATBOT.md`, `USAGE.md`) and the older
-> Kotlin/Views reference app (`android/`, `ANDROID-APP.md`) — neither is part
-> of the app-rn release. They still exist on `debug`/`master`.
+> CLI (`scripts/07_chatbot.py`, `CHATBOT.md`) and the older Kotlin/Views
+> reference app (`android/`, `ANDROID-APP.md`) — neither is part of the
+> app-rn release. They still exist on `debug`/`master`.
 
 ## Key findings from setting this up (read before changing models)
 

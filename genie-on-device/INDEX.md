@@ -1,18 +1,20 @@
 # genie-on-device — Index
 
 On-device LLM deployment to Qualcomm NPUs (QCS8550 / Snapdragon) via the
-Qualcomm AI Hub **Genie/QNN** pipeline. Working result: **Qwen3-4B running on
-QCS8550 at ~19.9 tok/s**.
+Qualcomm AI Hub **Genie/QNN** pipeline, now shipping as **GenieChatRN**: five
+models (Llama-3.2-1B/3B, Qwen3-4B on GENIE/QNN; Qwen3.5-2B and Gemma 4 E2B on
+GenieX/llama.cpp) across two on-device runtimes.
 
 ## Start here
 
 | If you want to… | Read |
 |-----------------|------|
+| **Build/deploy the chat app** (quick start, no cloud compile needed) | [docs/USAGE.md](docs/USAGE.md) |
+| **Understand the app's architecture** (5 models, 2 runtimes, debugging history) | [docs/ANDROID-RN-APP.md](docs/ANDROID-RN-APP.md), source in [app-rn/](app-rn) |
 | **Understand the findings & gotchas** (compat checks, proxy devices, the memory ceiling) | [docs/README.md](docs/README.md) |
-| **Reproduce it step-by-step** (exact commands, what worked, what didn't + fixes) | [docs/REPRODUCTION.md](docs/REPRODUCTION.md) |
-| **Understand how the pieces fit** (components, data flow, why context length matters) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| **Reproduce the GENIE export pipeline step-by-step** (exact commands, what worked, what didn't + fixes) | [docs/REPRODUCTION.md](docs/REPRODUCTION.md) |
+| **Understand how the export pipeline's pieces fit** (components, data flow, why context length matters) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | **A condensed reusable runbook** (for a new model/chip) | [`.claude/skills/deploy-genie-llm/SKILL.md`](../.claude/skills/deploy-genie-llm/SKILL.md) |
-| **Build/deploy the chat app** (React Native, 5 models, 2 on-device runtimes) | [app-rn/README.md](app-rn/README.md), architecture in [docs/ANDROID-RN-APP.md](docs/ANDROID-RN-APP.md) |
 
 > This branch (`release/app-rn`) is scoped to the chat app above. The
 > standalone chatbot/voice-assistant CLI and its Whisper/Canary-Qwen

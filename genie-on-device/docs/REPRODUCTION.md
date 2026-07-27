@@ -13,6 +13,12 @@ reproduce the result from scratch.
 - **Companion docs:** `ARCHITECTURE.md` (how the pieces interact),
   `README.md` (findings summary + directory layout), and the
   `deploy-genie-llm` skill (condensed runbook).
+- **Current app status:** the bundle this guide produces is one of five
+  models in **[GenieChatRN](../app-rn)**, the shipped chat app — once you
+  have a bundle in `workspace/output/<model-id>/`, `cd app-rn && bash
+  scripts/deploy.sh --models <model-id>` pushes it into the app instead of
+  (or in addition to) using `genie-t2t-run`/`ask.sh` directly. See
+  [USAGE.md](USAGE.md).
 
 ---
 
