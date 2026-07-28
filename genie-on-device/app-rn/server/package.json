@@ -1,0 +1,19 @@
+{
+  "name": "geniechat-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Linux app-server for GenieChat: supervises llama-server, runs the tool loop, serves the react-native-web UI.",
+  "//": "Deliberately separate from the RN app's package.json. The Android build must not be able to break because of a server dependency, and vice versa. Runtime dependencies: none — this runs on Node 20's stdlib alone, because the board has no network to install anything from.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test dist/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

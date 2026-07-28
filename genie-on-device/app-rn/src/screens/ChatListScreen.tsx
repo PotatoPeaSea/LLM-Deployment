@@ -1,5 +1,6 @@
 import React from 'react';
-import {Alert, FlatList, Pressable, StyleSheet, Text, View} from 'react-native';
+import {FlatList, Pressable, StyleSheet, Text, View} from 'react-native';
+import {confirmDestructive} from '../confirm';
 import {relativeTime, space, useTheme} from '../theme';
 import type {Chat} from '../store';
 import type {ModelInfo} from '../genie';
@@ -46,10 +47,7 @@ export function ChatListScreen({
           <Pressable
             onPress={() => onOpen(item)}
             onLongPress={() =>
-              Alert.alert('Delete chat?', item.title, [
-                {text: 'Cancel', style: 'cancel'},
-                {text: 'Delete', style: 'destructive', onPress: () => onDelete(item)},
-              ])
+              confirmDestructive('Delete chat?', item.title, 'Delete', () => onDelete(item))
             }
             style={styles.item}>
             <View style={styles.itemMain}>

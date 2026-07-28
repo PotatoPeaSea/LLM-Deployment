@@ -66,3 +66,15 @@ Thumbs.db
 *.swp
 .idea/
 .vscode/
+
+# ---- Ubuntu-board target (docs/UBUNTU-BOARD.md) ----
+# llama.cpp checkout + cross-build, the jammy sysroot, and the Node runtime
+# pushed to the board: all fetched/derived by app-rn/scripts/deploy-linux.sh.
+genie-on-device/workspace/llama.cpp/
+genie-on-device/workspace/sysroot-jammy-arm64/
+genie-on-device/workspace/node-arm64/
+genie-on-device/workspace/node-arm64.tar.xz
+# Compiled server and bundled web UI.
+genie-on-device/app-rn/server/dist/
+genie-on-device/app-rn/server/node_modules/
+genie-on-device/app-rn/web/dist/

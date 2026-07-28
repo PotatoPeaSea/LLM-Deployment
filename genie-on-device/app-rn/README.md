@@ -14,6 +14,15 @@ behind the current design, see
 **[../docs/ANDROID-RN-APP.md](../docs/ANDROID-RN-APP.md)**. This file is the
 practical "build it, deploy it" guide.
 
+> **There is a second target: the same board running Ubuntu instead of
+> Android.** It reuses the `src/` UI verbatim through react-native-web, and
+> replaces the Kotlin/GenieX half with stock llama.cpp plus a Node app-server
+> (`server/`). GGUF models only. Build and run it with
+> `bash scripts/deploy-linux.sh --models gguf`; the guide is
+> **[../docs/UBUNTU-BOARD.md](../docs/UBUNTU-BOARD.md)**. Nothing in that target
+> is on the Android build path — `server/`, `web/` and the `.web.ts` files are
+> invisible to gradle and Metro.
+
 ## What's inside
 
 ```

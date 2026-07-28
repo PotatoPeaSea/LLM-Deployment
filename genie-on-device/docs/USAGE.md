@@ -7,6 +7,13 @@ it, get models onto a device, run it. For *why* it's built the way it is
 [`../app-rn/README.md`](../app-rn/README.md) cover the same ground — this one
 is the docs/ index entry, that one is what you actually run from.
 
+> **Targeting a Qualcomm board running Ubuntu rather than Android?** Everything
+> below is the Android target. The Linux target is a different stack — stock
+> llama.cpp instead of the GenieX AAR, a Node app-server instead of the Kotlin
+> engine, the same UI compiled for the browser — and has its own guide:
+> [UBUNTU-BOARD.md](UBUNTU-BOARD.md). One command:
+> `bash scripts/deploy-linux.sh --models gguf`.
+
 ---
 
 ## 1. Prerequisites
