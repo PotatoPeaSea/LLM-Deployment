@@ -1,7 +1,7 @@
 import React, {useState} from 'react';
-import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Image, Platform, Pressable, StyleSheet, Text, View} from 'react-native';
 import {radius, space, useTheme} from '../theme';
-import type {Message} from '../store';
+import type {Message, ToolCall} from '../store';
 
 /** Tool name → what to call it in the "used X" line under a reply. */
 const TOOL_LABELS: Record<string, string> = {
@@ -14,8 +14,43 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 /**
- * One turn. The assistant's reasoning, when there is any, sits above the answer
- * behind a disclosure: visible enough to audit, quiet enough to ignore.
+ * How much of a tool's output to show.
+ *
+ * A web search returns several hundred words; the disclosure is for checking
+ * what the model was working from, not for reading the page. The model saw all
+ * of it either way — this cap is on the display only.
+ */
+const MAX_RESULT_CHARS = 700;
+
+/** Terminal-ish, because these are arguments and output, not prose. */
+const MONO = Platform.select({ios: 'Menlo', android: 'monospace', default: 'monospace'});
+
+/**
+ * The model's arguments, tidied for display. Reprinted through JSON so odd
+ * spacing collapses, but shown verbatim when it will not parse — malformed
+ * arguments are exactly the case this disclosure exists to make visible.
+ */
+function formatArgs(raw: string): string {
+  const text = (raw ?? '').trim();
+  if (!text || text === '{}') {
+    return '(no arguments)';
+  }
+  try {
+    return JSON.stringify(JSON.parse(text));
+  } catch {
+    return text;
+  }
+}
+
+function clip(text: string): string {
+  const flat = text.trim();
+  return flat.length > MAX_RESULT_CHARS ? `${flat.slice(0, MAX_RESULT_CHARS)}…` : flat;
+}
+
+/**
+ * One turn. The assistant's reasoning and its tool calls, when there are any,
+ * sit above the answer behind disclosures: visible enough to audit, quiet
+ * enough to ignore.
  */
 export function Bubble({
   message,
@@ -26,19 +61,38 @@ export function Bubble({
 }) {
   const t = useTheme();
   const [open, setOpen] = useState(false);
+  const [openTools, setOpenTools] = useState(false);
   const isUser = message.role === 'user';
+  const calls: ToolCall[] = message.toolCalls ?? [];
+  const running = calls.some(c => c.ms == null);
 
   return (
     <View style={[styles.row, isUser ? styles.rowUser : styles.rowAssistant]}>
-      {!isUser && !!message.thoughts && (
-        <Pressable
-          onPress={() => setOpen(v => !v)}
-          style={[styles.thoughtsToggle, {borderColor: t.border}]}
-          hitSlop={6}>
-          <Text style={[styles.thoughtsLabel, {color: t.textDim}]}>
-            {open ? '▾' : '▸'} Thoughts
-          </Text>
-        </Pressable>
+      {!isUser && (!!message.thoughts || calls.length > 0) && (
+        <View style={styles.toggles}>
+          {!!message.thoughts && (
+            <Pressable
+              onPress={() => setOpen(v => !v)}
+              style={[styles.toggle, {borderColor: t.border}]}
+              hitSlop={6}>
+              <Text style={[styles.toggleLabel, {color: t.textDim}]}>
+                {open ? '▾' : '▸'} Thoughts
+              </Text>
+            </Pressable>
+          )}
+          {calls.length > 0 && (
+            <Pressable
+              onPress={() => setOpenTools(v => !v)}
+              style={[styles.toggle, {borderColor: t.border}]}
+              hitSlop={6}>
+              <Text style={[styles.toggleLabel, {color: t.textDim}]}>
+                {openTools ? '▾' : '▸'}{' '}
+                {calls.length === 1 ? '1 tool call' : `${calls.length} tool calls`}
+                {running ? ' · running' : ''}
+              </Text>
+            </Pressable>
+          )}
+        </View>
       )}
 
       {!isUser && open && !!message.thoughts && (
@@ -46,6 +100,33 @@ export function Bubble({
           <Text style={[styles.thoughtsText, {color: t.textDim}]}>
             {message.thoughts}
           </Text>
+        </View>
+      )}
+
+      {!isUser && openTools && calls.length > 0 && (
+        <View style={[styles.tools, {backgroundColor: t.surfaceAlt, borderColor: t.border}]}>
+          {calls.map((call, index) => (
+            <View
+              key={`${call.name}-${index}`}
+              style={index > 0 ? [styles.call, {borderTopColor: t.border}] : undefined}>
+              <View style={styles.callHead}>
+                <Text style={[styles.callName, {color: t.text}]}>{call.name}</Text>
+                <Text style={[styles.callTime, {color: t.textFaint}]}>
+                  {call.ms == null ? 'running…' : `${(call.ms / 1000).toFixed(1)}s`}
+                </Text>
+              </View>
+              <Text style={[styles.code, {color: t.textDim}]} selectable>
+                {formatArgs(call.arguments)}
+              </Text>
+              {!!call.result && (
+                <Text
+                  style={[styles.code, {color: call.ok === false ? t.danger : t.textDim}]}
+                  selectable>
+                  {`→ ${clip(call.result)}`}
+                </Text>
+              )}
+            </View>
+          ))}
         </View>
       )}
 
@@ -115,14 +196,19 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     resizeMode: 'cover',
   },
-  thoughtsToggle: {
+  toggles: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.xs,
+    marginBottom: space.xs,
+  },
+  toggle: {
     paddingVertical: space.xs,
     paddingHorizontal: space.sm,
-    marginBottom: space.xs,
     borderRadius: radius.sm,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  thoughtsLabel: {fontSize: 12, letterSpacing: 0.2},
+  toggleLabel: {fontSize: 12, letterSpacing: 0.2},
   thoughts: {
     padding: space.md,
     marginBottom: space.sm,
@@ -130,5 +216,25 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   thoughtsText: {fontSize: 13, lineHeight: 19, fontStyle: 'italic'},
+  tools: {
+    padding: space.md,
+    marginBottom: space.sm,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: space.sm,
+  },
+  call: {
+    paddingTop: space.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  callHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: space.sm,
+    marginBottom: 2,
+  },
+  callName: {flex: 1, fontSize: 12.5, fontWeight: '600', fontFamily: MONO},
+  callTime: {fontSize: 11},
+  code: {fontSize: 11.5, lineHeight: 17, fontFamily: MONO},
   meta: {fontSize: 11, marginTop: space.xs, marginLeft: space.xs},
 });

@@ -10,7 +10,7 @@
     "test": "jest",
     "build:web": "webpack --config web/webpack.config.js --mode production",
     "start:web": "webpack serve --config web/webpack.config.js --mode development",
-    "test:web": "npm run build:web && node web/smoke-test.js",
+    "test:web": "npm run build:web && node web/smoke-test.js && node web/interaction-test.js",
     "build:server": "npm --prefix server run build"
   },
   "dependencies": {

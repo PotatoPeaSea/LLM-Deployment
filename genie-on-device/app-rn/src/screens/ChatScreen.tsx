@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import {Bubble} from '../components/Bubble';
-import {Composer} from '../components/Composer';
+import {Composer, type QueuedTurn} from '../components/Composer';
 import {Sheet, ToggleRow} from '../components/Sheet';
 import {space, useTheme} from '../theme';
 import {
@@ -50,6 +50,15 @@ export function ChatScreen({
   const [ctx, setCtx] = useState<{used: number; total: number} | null>(null);
   const [capped, setCapped] = useState(false);
   const [toolStatus, setToolStatus] = useState('');
+  /** Turns typed while the model was busy or still loading, oldest first. */
+  const [queue, setQueue] = useState<QueuedTurn[]>([]);
+  /**
+   * A queued turn has been handed to `send` but `busy` may not have caught up
+   * yet. State, not a ref, on purpose: clearing it has to re-run the drain
+   * effect, or the rest of the queue would sit there until something else
+   * happened to re-render.
+   */
+  const [draining, setDraining] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
   const model = models.find(m => m.id === chat.modelId);
@@ -139,7 +148,13 @@ export function ChatScreen({
           },
           progress => {
             setToolStatus(progress.status ?? '');
-            patchDraft({content: progress.answer, thoughts: progress.thoughts || undefined});
+            patchDraft({
+              content: progress.answer,
+              thoughts: progress.thoughts || undefined,
+              // Streamed in, so the disclosure fills in while the calls run
+              // instead of appearing whole once the reply lands.
+              toolCalls: progress.toolCalls?.length ? progress.toolCalls : undefined,
+            });
           },
         );
         patchDraft({
@@ -147,6 +162,7 @@ export function ChatScreen({
           thoughts: result.thoughts || undefined,
           elapsedMs: result.elapsedMs,
           toolsUsed: result.toolsUsed?.length ? result.toolsUsed : undefined,
+          toolCalls: result.toolCalls?.length ? result.toolCalls : undefined,
         });
         setCtx({used: result.contextUsed, total: result.contextLength});
         setCapped(result.capped);
@@ -159,6 +175,55 @@ export function ChatScreen({
     },
     [chat, onChange, settings.brevity, settings.thinking],
   );
+
+  const ready = load.kind === 'ready' && !busy && !draining;
+
+  /**
+   * A submit from the composer: start it now, or park it.
+   *
+   * Parking is the whole reason this sits here rather than in `Composer` — only
+   * this screen knows whether the model is free.
+   */
+  const submit = useCallback(
+    (text: string, imagePaths: string[]) => {
+      if (ready) {
+        void send(text, imagePaths);
+        return;
+      }
+      setQueue(prev => [
+        ...prev,
+        // Tagged with the chat: a queued turn must never be replayed into a
+        // conversation the user has since switched to.
+        {id: newId(), chatId: chat.id, text, images: imagePaths},
+      ]);
+    },
+    [chat.id, ready, send],
+  );
+
+  // Drain one queued turn whenever the model comes free. `draining` gates the
+  // window between handing a turn to `send` and `busy` going true.
+  useEffect(() => {
+    if (busy || draining || load.kind !== 'ready') {
+      return;
+    }
+    const next = queue.find(item => item.chatId === chat.id);
+    if (!next) {
+      return;
+    }
+    setDraining(true);
+    setQueue(prev => prev.filter(item => item.id !== next.id));
+    void send(next.text, next.images).finally(() => setDraining(false));
+  }, [busy, chat.id, draining, load.kind, queue, send]);
+
+  // Leaving a chat drops what it had queued. Carrying it would mean messages
+  // arriving in a conversation the user walked away from, minutes later.
+  useEffect(() => {
+    setQueue(prev =>
+      prev.every(item => item.chatId === chat.id)
+        ? prev
+        : prev.filter(item => item.chatId === chat.id),
+    );
+  }, [chat.id]);
 
   const status =
     load.kind === 'loading'
@@ -225,11 +290,16 @@ export function ChatScreen({
       </View>
 
       <Composer
-        busy={busy}
-        disabled={load.kind !== 'ready'}
+        busy={busy || draining}
+        ready={ready}
+        // Only a load failure blocks writing entirely: while the model is still
+        // coming up, a message can be queued.
+        disabled={load.kind === 'error'}
         canAttach={!!model?.supportsImages}
-        onSend={send}
+        queued={queue.filter(item => item.chatId === chat.id)}
+        onSend={submit}
         onStop={stop}
+        onUnqueue={id => setQueue(prev => prev.filter(item => item.id !== id))}
       />
 
       <Sheet visible={sheet} title="This chat" onClose={() => setSheet(false)}>

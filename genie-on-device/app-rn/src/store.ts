@@ -14,6 +14,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const CHATS_KEY = 'genie.chats.v1';
 const SETTINGS_KEY = 'genie.settings.v1';
 
+/**
+ * One tool call the model made, kept for the disclosure under the reply.
+ *
+ * Persisted with the message rather than recomputed: the call is the only
+ * record of *why* a reply says what it says — a web search whose query was
+ * nothing like the question explains a wrong answer that the answer alone
+ * cannot. Mirrors `ToolCall` in the server's `engine.ts`, which fills it in.
+ */
+export type ToolCall = {
+  name: string;
+  /** Arguments verbatim as the model emitted them: a JSON string, usually. */
+  arguments: string;
+  /** What the tool handed back. Empty while the call is still running. */
+  result: string;
+  /** Wall time of the call. Absent while it is still running. */
+  ms?: number;
+  /** False when the tool failed or refused; `result` is the message either way. */
+  ok?: boolean;
+};
+
 export type Message = {
   id: string;
   role: 'user' | 'assistant';
@@ -31,6 +51,8 @@ export type Message = {
   images?: string[];
   /** Tools the model called for this reply, for the "used web_search" note. */
   toolsUsed?: string[];
+  /** The same calls in full — name, arguments, result — for the disclosure. */
+  toolCalls?: ToolCall[];
 };
 
 export type Chat = {

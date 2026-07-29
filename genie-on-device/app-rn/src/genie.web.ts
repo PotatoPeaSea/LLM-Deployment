@@ -16,6 +16,9 @@
  * the API. The board has no network interface, so the browser reaches both
  * through `adb forward tcp:8080 tcp:8080` from the workstation.
  */
+import type {ToolCall} from './store';
+
+export type {ToolCall};
 
 export type ModelInfo = {
   id: string;
@@ -46,6 +49,11 @@ export type Progress = {
    * this the UI would sit silent for seconds mid-turn.
    */
   status?: string;
+  /**
+   * Every tool call this turn, with arguments and result. Grows mid-turn: a
+   * call appears when it starts and gains its result when it returns.
+   */
+  toolCalls?: ToolCall[];
 };
 
 export type GenerateResult = Progress & {
@@ -191,6 +199,9 @@ export async function generate(
           thoughts: String(event.thoughts ?? ''),
           hasThoughts: Boolean(event.hasThoughts),
           status: String(event.status ?? ''),
+          toolCalls: Array.isArray(event.toolCalls)
+            ? (event.toolCalls as ToolCall[])
+            : [],
         });
       } else if (event.type === 'done') {
         result = event as unknown as GenerateResult;

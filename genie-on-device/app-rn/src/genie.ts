@@ -7,6 +7,9 @@
  * arrive.
  */
 import {NativeEventEmitter, NativeModules} from 'react-native';
+import type {ToolCall} from './store';
+
+export type {ToolCall};
 
 const {Genie, ImagePicker} = NativeModules;
 
@@ -48,6 +51,13 @@ export type Progress = {
    * this the UI would sit silent for seconds mid-turn.
    */
   status?: string;
+  /**
+   * Every tool call this turn, with arguments and result — what the disclosure
+   * under a reply shows. Undefined here: GenieModule still reports only the
+   * names, in `toolsUsed`. The field exists so the shared UI compiles against
+   * both bridges (see `genie.web.ts`, which does fill it in).
+   */
+  toolCalls?: ToolCall[];
 };
 
 export type GenerateResult = Progress & {
@@ -135,6 +145,7 @@ export function generate(
         thoughts: event.thoughts,
         hasThoughts: event.hasThoughts,
         status: event.status,
+        toolCalls: event.toolCalls,
       });
     },
   );

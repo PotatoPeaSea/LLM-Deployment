@@ -35,6 +35,9 @@ which may conflict with other projects on the host.
 - **[ANDROID-RN-APP.md](ANDROID-RN-APP.md)** — the app's architecture: five
   models, two on-device runtimes, the debugging history behind the current
   design.
+- **[REMOTE-DESKTOP.md](REMOTE-DESKTOP.md)** — getting an xrdp desktop onto
+  the Ubuntu board so you can drive it from Windows Remote Desktop instead of
+  adb shell.
 - **`.claude/skills/deploy-genie-llm/SKILL.md`** — condensed reusable runbook for
   applying this to a new model/chip.
 

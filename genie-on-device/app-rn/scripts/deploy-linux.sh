@@ -165,6 +165,9 @@ if [ "$SKIP_BUILD" = 0 ]; then
 
     say "Checking the bundle actually renders"
     node web/smoke-test.js
+
+    say "Checking the composer and the tool-call disclosure still behave"
+    node web/interaction-test.js
 fi
 
 [ -x "$LLAMA_SRC/pkg-sysroot/bin/llama-server" ] ||

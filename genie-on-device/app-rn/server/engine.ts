@@ -44,12 +44,37 @@ const TOOLS: Tool[] = [DateTimeTool, BatteryTool, DeviceInfoTool, WebSearchTool]
 export type Role = 'user' | 'assistant' | 'system';
 export type Message = {role: Role; content: string};
 
+/**
+ * One tool call, as the UI shows it behind the "tool calls" disclosure.
+ *
+ * The point of carrying the arguments and the result — not just the name — is
+ * auditability: a 2B model at 4-bit gets tool arguments wrong often enough that
+ * "it used web search" is not enough to explain a bad answer, and the query it
+ * actually sent usually is.
+ */
+export type ToolCall = {
+  name: string;
+  /** Arguments verbatim as the model emitted them: a JSON string, usually. */
+  arguments: string;
+  /** What the tool handed back. Empty while the call is still running. */
+  result: string;
+  /** Wall time of the call. Absent while it is still running. */
+  ms?: number;
+  /** False when the tool failed or refused; `result` is the message either way. */
+  ok?: boolean;
+};
+
 /** Progress pushed to the UI mid-turn — the wire shape of `Progress` in genie.ts. */
 export type Progress = {
   answer: string;
   thoughts: string;
   hasThoughts: boolean;
   status: string;
+  /**
+   * Tool calls so far this turn, appended as they start and filled in as they
+   * finish, so the disclosure fills in live rather than appearing at the end.
+   */
+  toolCalls: ToolCall[];
 };
 
 export type TurnResult = Progress & {
@@ -135,12 +160,16 @@ export class Engine {
     let answer = '';
     let thoughts = '';
     let status = '';
+    // Records are mutated in place as their call completes; `push` re-sends the
+    // whole array, so the UI always has the current state of every call.
+    const toolCalls: ToolCall[] = [];
     const push = () =>
       onProgress({
         answer: answer.trim(),
         thoughts: thoughts.trim(),
         hasThoughts: thoughts.trim().length > 0,
         status,
+        toolCalls,
       });
 
     const system = s.systemPrompt + (brevity ? s.brevityClause : '');
@@ -166,18 +195,31 @@ export class Engine {
         push();
       };
 
+      // `tools` stays on every pass, including the last. llama.cpp only
+      // grammar-constrains tool-call output when `tools` is present in the
+      // request; dropping it does not stop a model from *wanting* to call a
+      // tool, it only stops llama.cpp from parsing the attempt. Unconstrained,
+      // the attempt comes back as plain text (a raw `<tool_call>...` block)
+      // instead of a structured, discardable call, and that text leaks
+      // straight into the visible answer.
       const result = await this.llama.chatStream(
         messages,
-        // On the final permitted pass, drop the tools so the model has no
-        // choice but to answer with what it already gathered.
-        isLast ? null : tools,
+        tools,
         thinking && s.supportsReasoning,
         MAX_NEW_TOKENS,
         onDelta,
       );
 
       if (result.toolCalls.length === 0) {
-        return this.finish(answer, thoughts, used, t0, s.contextLength);
+        return this.finish(answer, thoughts, used, toolCalls, t0, s.contextLength);
+      }
+
+      // Out of budget: the model still wants a tool but cannot have one. Its
+      // attempt was captured as an unexecuted structured call rather than
+      // leaking into `answer`, so finish with whatever real text — if any —
+      // it already wrote this turn.
+      if (isLast) {
+        return this.finish(answer, thoughts, used, toolCalls, t0, s.contextLength);
       }
 
       // Keep the model's own tool-call turn in the transcript: the template
@@ -191,25 +233,40 @@ export class Engine {
 
       for (const call of result.toolCalls) {
         status = statusFor(call.function.name);
+        // Published before the call runs, so the disclosure shows what is in
+        // flight during the seconds a web search takes.
+        const record: ToolCall = {
+          name: call.function.name,
+          arguments: call.function.arguments,
+          result: '',
+        };
+        toolCalls.push(record);
         push();
-        const output = await this.execute(call);
+
+        const callStart = Date.now();
+        const outcome = await this.execute(call);
+        record.result = outcome.output;
+        record.ok = outcome.ok;
+        record.ms = Date.now() - callStart;
         used.push(call.function.name);
         console.log(
-          `[engine] tool ${call.function.name}(${call.function.arguments}) -> ${output.slice(0, 120)}`,
+          `[engine] tool ${call.function.name}(${call.function.arguments}) -> ${outcome.output.slice(0, 120)}`,
         );
-        messages.push({role: 'tool', content: output, tool_call_id: call.id});
+        push();
+        messages.push({role: 'tool', content: outcome.output, tool_call_id: call.id});
       }
       status = '';
       push();
     }
 
-    return this.finish(answer, thoughts, used, t0, s.contextLength);
+    return this.finish(answer, thoughts, used, toolCalls, t0, s.contextLength);
   }
 
   private finish(
     answer: string,
     thoughts: string,
     used: string[],
+    toolCalls: ToolCall[],
     t0: number,
     contextLength: number,
   ): TurnResult {
@@ -228,6 +285,7 @@ export class Engine {
       thoughts: promoted ? '' : thinking,
       hasThoughts: !promoted && thinking.length > 0,
       status: '',
+      toolCalls,
       elapsedMs: Date.now() - t0,
       // llama-server manages the KV cache itself and the window is large; the
       // Android context arithmetic (trim, re-prime, reserve-for-reply) has no
@@ -242,11 +300,15 @@ export class Engine {
   /**
    * Run one tool. A tool must never take the turn down with it: a dead network
    * or a missing sysfs node becomes a sentence the model can relay.
+   *
+   * `ok` distinguishes "the tool answered" from "the tool explained why it
+   * couldn't" — both go back to the model as text, but only the second should
+   * read as a failure in the UI.
    */
-  private async execute(call: ToolCallWire): Promise<string> {
+  private async execute(call: ToolCallWire): Promise<{output: string; ok: boolean}> {
     const tool = TOOLS.find(t => t.name === call.function.name);
     if (!tool) {
-      return `No such tool: ${call.function.name}.`;
+      return {output: `No such tool: ${call.function.name}.`, ok: false};
     }
     let args: Record<string, unknown> = {};
     try {
@@ -255,13 +317,19 @@ export class Engine {
       // A 2B at 4-bit will occasionally emit arguments that aren't valid JSON.
       // Running the tool with no arguments produces a usable error message;
       // failing the turn does not.
-      return `The arguments for ${call.function.name} were not valid JSON.`;
+      return {
+        output: `The arguments for ${call.function.name} were not valid JSON.`,
+        ok: false,
+      };
     }
     try {
-      return await tool.run(args);
+      return {output: await tool.run(args), ok: true};
     } catch (e) {
       console.warn(`[engine] tool ${call.function.name} failed`, e);
-      return `The ${call.function.name} tool failed: ${(e as Error).message ?? 'unknown error'}.`;
+      return {
+        output: `The ${call.function.name} tool failed: ${(e as Error).message ?? 'unknown error'}.`,
+        ok: false,
+      };
     }
   }
 }

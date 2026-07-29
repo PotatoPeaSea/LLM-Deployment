@@ -163,7 +163,7 @@ app-rn/
   src/genie.web.ts     HTTP/SSE client; replaces genie.ts on the web target
   src/confirm.*.ts     Alert shim (react-native-web has no working Alert)
   server/              the app-server (TypeScript -> dist/)
-  web/                 webpack config, entry point, render smoke test
+  web/                 webpack config, entry point, render + interaction tests
   scripts/deploy-linux.sh
   scripts/search-relay.mjs
   scripts/board/geniechat.sh   start/stop/status, as it runs on the board
@@ -173,6 +173,26 @@ The UI is shared through bundler extension resolution: webpack tries `.web.ts`
 before `.ts`, so `App.tsx` and both screens import `'./genie'` and get the
 native module on Android and the HTTP client in the browser, with no
 conditionals in either. The Android build never sees `server/` or `web/`.
+
+### What the browser target does differently
+
+Three things, all in the shared components, because a keyboard and a mouse are
+not a touchscreen:
+
+- **Enter sends, Shift+Enter is a newline.** Web only: on a phone the return key
+  is the only way to get a second line. react-native-web hands `onSubmitEditing`
+  to single-line inputs only, so `Composer` reads the key itself and has to
+  `preventDefault` the newline it was pressed instead of.
+- **Typing is never blocked.** A turn written while a reply is generating — or
+  while the model is still loading — is queued, shown as a chip above the
+  composer, and sent on its own when the model comes free. Press the chip to take
+  it back. `ChatScreen` owns the queue; `Composer` only reports the submit,
+  since only the screen knows whether the model is free.
+- **Tool calls are auditable.** Every call's name, arguments and result sit
+  behind a disclosure under the reply, filled in live as the calls run. The
+  server sends them in the SSE `progress` frames (`Progress.toolCalls`), which is
+  why this works here and not on Android — `GenieModule` still reports only the
+  tool *names*.
 
 ## 8. Verifying
 
@@ -187,6 +207,13 @@ curl http://127.0.0.1:8080/api/models     # through the adb tunnel
 bundle into a real DOM and asserts the chat list rendered. A build that compiles
 but resolves `genie.ts` instead of `genie.web.ts` throws on import and shows a
 blank page — this test fails instead.
+
+It then runs `web/interaction-test.js`, which drives that same DOM with real
+events against a fake app-server: Enter sends and Shift+Enter does not, a turn
+typed mid-reply is queued and goes out when the reply lands, and a tool call's
+arguments and result appear behind the disclosure. These are browser-only
+behaviours — the Android build has neither a hardware Enter key nor this
+composer state — so nothing else in the repo covers them.
 
 To confirm the Android app is unaffected:
 
