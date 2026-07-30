@@ -1,13 +1,15 @@
 /**
  * The one tool that leaves the device.
  *
- * Uses the Exa Answer API (`POST /answer`): a real, current web index plus
- * synthesis, returning one sourced answer instead of a list of links for the
- * model to digest. That replaces the previous keyless pair (DuckDuckGo's
- * Instant Answer API + a Wikipedia REST summary fallback), which only ever
- * covered encyclopaedic "what is X" questions and returned nothing for
- * ordinary or current-events queries. Exa needs an API key
- * (`EXA_API_KEY`) — see `scripts/search-relay.mjs` for where that key is
+ * Primarily the Exa Answer API (`POST /answer`): a real, current web index
+ * plus synthesis, returning one sourced answer instead of a list of links for
+ * the model to digest. Falls back to the original keyless pair — DuckDuckGo's
+ * Instant Answer API, then Wikipedia's REST summary — when `EXA_API_KEY`
+ * isn't set, or when Exa doesn't have an answer. The fallback only ever
+ * covers encyclopaedic "what is X" questions and returns nothing for
+ * ordinary or current-events queries, which is the whole reason Exa is
+ * first choice; it exists so the tool still does *something* useful
+ * keyless. See `scripts/search-relay.mjs` for where `EXA_API_KEY` is
  * expected to live, since it never needs to reach the board.
  *
  * ## Why there is a relay
@@ -93,6 +95,78 @@ async function get(url: string): Promise<string | null> {
 
 const enc = encodeURIComponent;
 
+/** DuckDuckGo Instant Answer. Returns null when it has nothing useful. */
+async function instantAnswer(query: string): Promise<string | null> {
+  const body = await get(
+    `https://api.duckduckgo.com/?q=${enc(query)}&format=json&no_html=1&skip_disambig=1`,
+  );
+  if (!body) {
+    return null;
+  }
+  try {
+    const json = JSON.parse(body);
+
+    const abstract = String(json.AbstractText ?? '').trim();
+    if (abstract) {
+      const source = String(json.AbstractSource ?? '').trim();
+      return source ? `${abstract} (source: ${source})` : abstract;
+    }
+    const answer = String(json.Answer ?? '').trim();
+    if (answer) {
+      return answer;
+    }
+
+    // RelatedTopics is the last resort: a list of one-line blurbs.
+    const topics: unknown[] = Array.isArray(json.RelatedTopics) ? json.RelatedTopics : [];
+    const lines = topics
+      .slice(0, 3)
+      .map(t => String((t as {Text?: unknown})?.Text ?? '').trim())
+      .filter(Boolean)
+      .map(t => `- ${t}`);
+    return lines.length ? lines.join('\n') : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Wikipedia REST summary for the best-matching article title. */
+async function wikipediaSummary(query: string): Promise<string | null> {
+  const searchBody = await get(
+    'https://en.wikipedia.org/w/api.php?action=query&list=search' +
+      `&srsearch=${enc(query)}&srlimit=1&format=json`,
+  );
+  if (!searchBody) {
+    return null;
+  }
+  let title = '';
+  try {
+    title = String(JSON.parse(searchBody)?.query?.search?.[0]?.title ?? '').trim();
+  } catch {
+    return null;
+  }
+  if (!title) {
+    return null;
+  }
+
+  const summaryBody = await get(
+    `https://en.wikipedia.org/api/rest_v1/page/summary/${enc(title)}`,
+  );
+  if (!summaryBody) {
+    return null;
+  }
+  try {
+    const extract = String(JSON.parse(summaryBody)?.extract ?? '').trim();
+    return extract ? `${extract} (source: Wikipedia, "${title}")` : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Keyless fallback, used when Exa is not configured or comes up empty. */
+async function keylessFallback(query: string): Promise<string | null> {
+  return (await instantAnswer(query)) ?? (await wikipediaSummary(query));
+}
+
 /** Exa's Answer API: a synthesized, sourced answer over Exa's live web index. */
 async function exaAnswer(query: string): Promise<string | null> {
   const apiKey = process.env.EXA_API_KEY;
@@ -126,14 +200,9 @@ async function exaAnswer(query: string): Promise<string | null> {
  * host-side relay is this same function behind an HTTP endpoint.
  */
 export async function searchDirect(query: string): Promise<string> {
-  const answer = await exaAnswer(query);
-  if (answer) {
-    return answer;
-  }
-  if (!process.env.EXA_API_KEY) {
-    return 'Web search is not configured: no EXA_API_KEY is set.';
-  }
-  return `No result found for "${query}".`;
+  return (
+    (await exaAnswer(query)) ?? (await keylessFallback(query)) ?? `No result found for "${query}".`
+  );
 }
 
 /** Ask the relay on the far end of the adb-reverse tunnel. */
