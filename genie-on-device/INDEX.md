@@ -1,19 +1,25 @@
 # genie-on-device — Index
 
 On-device LLM deployment to Qualcomm NPUs (QCS8550 / Snapdragon) via the
-Qualcomm AI Hub **Genie/QNN** pipeline. Working result: **Qwen3-4B running on
-QCS8550 at ~19.9 tok/s**.
+Qualcomm AI Hub **Genie/QNN** pipeline, now shipping as **GenieChatRN**: five
+models (Llama-3.2-1B/3B, Qwen3-4B on GENIE/QNN; Qwen3.5-2B and Gemma 4 E2B on
+GenieX/llama.cpp) across two on-device runtimes.
 
 ## Start here
 
 | If you want to… | Read |
 |-----------------|------|
+| **Build/deploy the chat app** (quick start, no cloud compile needed) | [docs/USAGE.md](docs/USAGE.md) |
+| **Understand the app's architecture** (5 models, 2 runtimes, debugging history) | [docs/ANDROID-RN-APP.md](docs/ANDROID-RN-APP.md), source in [app-rn/](app-rn) |
 | **Understand the findings & gotchas** (compat checks, proxy devices, the memory ceiling) | [docs/README.md](docs/README.md) |
-| **Reproduce it step-by-step** (exact commands, what worked, what didn't + fixes) | [docs/REPRODUCTION.md](docs/REPRODUCTION.md) |
-| **Understand how the pieces fit** (components, data flow, why context length matters) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| **Reproduce the GENIE export pipeline step-by-step** (exact commands, what worked, what didn't + fixes) | [docs/REPRODUCTION.md](docs/REPRODUCTION.md) |
+| **Understand how the export pipeline's pieces fit** (components, data flow, why context length matters) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | **A condensed reusable runbook** (for a new model/chip) | [`.claude/skills/deploy-genie-llm/SKILL.md`](../.claude/skills/deploy-genie-llm/SKILL.md) |
-| **Pick up the ACTIVE task** (Whisper-Base ASR + Llama-3.2-1B voice assistant — Llama is working, Whisper decode loop is next) | [docs/HANDOFF-whisper-llama-voice-assistant.md](docs/HANDOFF-whisper-llama-voice-assistant.md) |
-| Background/alternate path (offline compile of nvidia/canary-qwen-2.5b, paused on a hardware wall) | [docs/HANDOFF-canary-qwen-offline.md](docs/HANDOFF-canary-qwen-offline.md) |
+
+> This branch (`release/app-rn`) is scoped to the chat app above. The
+> standalone chatbot/voice-assistant CLI and its Whisper/Canary-Qwen
+> handoffs, and the older Kotlin/Views reference app, aren't part of this
+> release — see `debug`/`master` for those.
 
 ## Fast path (repeat the known-good setup)
 

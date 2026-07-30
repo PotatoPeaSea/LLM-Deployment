@@ -5,5 +5,21 @@
     <application
         android:usesCleartextTraffic="true"
         tools:targetApi="28"
-        tools:ignore="GoogleAppIndexingWarning"/>
+        tools:ignore="GoogleAppIndexingWarning">
+
+        <!-- Debug-build-only: adb driven CLI for testing turns without the JS
+             UI or a screenshot. See CliReceiver.kt and scripts/genie_cli.py.
+             exported=true so `adb shell am broadcast` (uid shell, a different
+             uid than the app) can reach it; there is no signature permission
+             guarding it because that would also block adb shell. Acceptable
+             here because this receiver only ever ships in the debug variant,
+             on a dev board that isn't handed to untrusted users. -->
+        <receiver
+            android:name=".genie.CliReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.geniechatrn.CLI_PROMPT" />
+            </intent-filter>
+        </receiver>
+    </application>
 </manifest>

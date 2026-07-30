@@ -10,10 +10,16 @@ import {
   View,
 } from 'react-native';
 import {Bubble} from '../components/Bubble';
-import {Composer} from '../components/Composer';
+import {Composer, type QueuedTurn} from '../components/Composer';
 import {Sheet, ToggleRow} from '../components/Sheet';
 import {space, useTheme} from '../theme';
-import {generate, loadModel, stop, type ModelInfo} from '../genie';
+import {
+  generate,
+  loadModel,
+  requestToolPermissions,
+  stop,
+  type ModelInfo,
+} from '../genie';
 import {deriveTitle, newId, toWire, type Chat, type Message, type Settings} from '../store';
 
 type LoadState =
@@ -43,9 +49,27 @@ export function ChatScreen({
   const [sheet, setSheet] = useState(false);
   const [ctx, setCtx] = useState<{used: number; total: number} | null>(null);
   const [capped, setCapped] = useState(false);
+  const [toolStatus, setToolStatus] = useState('');
+  /** Turns typed while the model was busy or still loading, oldest first. */
+  const [queue, setQueue] = useState<QueuedTurn[]>([]);
+  /**
+   * A queued turn has been handed to `send` but `busy` may not have caught up
+   * yet. State, not a ref, on purpose: clearing it has to re-run the drain
+   * effect, or the rest of the queue would sit there until something else
+   * happened to re-render.
+   */
+  const [draining, setDraining] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
   const model = models.find(m => m.id === chat.modelId);
+
+  // Ask once per chat, before the first turn. Doing it here rather than when a
+  // tool fires keeps the permission dialog out of the middle of a generation.
+  useEffect(() => {
+    if (model?.supportsTools) {
+      void requestToolPermissions();
+    }
+  }, [model?.supportsTools]);
 
   // A chat is pinned to its model, so opening one may swap what is resident on
   // the NPU. loadModel no-ops when it is already the loaded model.
@@ -74,20 +98,29 @@ export function ChatScreen({
   }, [chat.modelId]);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, imagePaths: string[] = []) => {
       const history = chat.messages;
-      const userMessage: Message = {id: newId(), role: 'user', content: text};
+      const userMessage: Message = {
+        id: newId(),
+        role: 'user',
+        content: text,
+        images: imagePaths.length ? imagePaths : undefined,
+      };
       const draft: Message = {id: newId(), role: 'assistant', content: ''};
 
       let working: Chat = {
         ...chat,
-        title: history.length === 0 ? deriveTitle(text) : chat.title,
+        title:
+          history.length === 0
+            ? deriveTitle(text || 'Image')
+            : chat.title,
         messages: [...history, userMessage, draft],
         updatedAt: Date.now(),
       };
       onChange(working);
       setBusy(true);
       setCapped(false);
+      setToolStatus('');
 
       const patchDraft = (patch: Partial<Message>) => {
         working = {
@@ -109,16 +142,27 @@ export function ChatScreen({
             // cache has to be rebuilt, but it must always be accurate.
             history: toWire(history),
             text,
+            imagePaths,
             brevity: settings.brevity,
             thinking: settings.thinking,
           },
-          progress =>
-            patchDraft({content: progress.answer, thoughts: progress.thoughts || undefined}),
+          progress => {
+            setToolStatus(progress.status ?? '');
+            patchDraft({
+              content: progress.answer,
+              thoughts: progress.thoughts || undefined,
+              // Streamed in, so the disclosure fills in while the calls run
+              // instead of appearing whole once the reply lands.
+              toolCalls: progress.toolCalls?.length ? progress.toolCalls : undefined,
+            });
+          },
         );
         patchDraft({
           content: result.answer,
           thoughts: result.thoughts || undefined,
           elapsedMs: result.elapsedMs,
+          toolsUsed: result.toolsUsed?.length ? result.toolsUsed : undefined,
+          toolCalls: result.toolCalls?.length ? result.toolCalls : undefined,
         });
         setCtx({used: result.contextUsed, total: result.contextLength});
         setCapped(result.capped);
@@ -126,10 +170,60 @@ export function ChatScreen({
         patchDraft({content: `⚠︎ ${e?.message ?? e}`});
       } finally {
         setBusy(false);
+        setToolStatus('');
       }
     },
     [chat, onChange, settings.brevity, settings.thinking],
   );
+
+  const ready = load.kind === 'ready' && !busy && !draining;
+
+  /**
+   * A submit from the composer: start it now, or park it.
+   *
+   * Parking is the whole reason this sits here rather than in `Composer` — only
+   * this screen knows whether the model is free.
+   */
+  const submit = useCallback(
+    (text: string, imagePaths: string[]) => {
+      if (ready) {
+        void send(text, imagePaths);
+        return;
+      }
+      setQueue(prev => [
+        ...prev,
+        // Tagged with the chat: a queued turn must never be replayed into a
+        // conversation the user has since switched to.
+        {id: newId(), chatId: chat.id, text, images: imagePaths},
+      ]);
+    },
+    [chat.id, ready, send],
+  );
+
+  // Drain one queued turn whenever the model comes free. `draining` gates the
+  // window between handing a turn to `send` and `busy` going true.
+  useEffect(() => {
+    if (busy || draining || load.kind !== 'ready') {
+      return;
+    }
+    const next = queue.find(item => item.chatId === chat.id);
+    if (!next) {
+      return;
+    }
+    setDraining(true);
+    setQueue(prev => prev.filter(item => item.id !== next.id));
+    void send(next.text, next.images).finally(() => setDraining(false));
+  }, [busy, chat.id, draining, load.kind, queue, send]);
+
+  // Leaving a chat drops what it had queued. Carrying it would mean messages
+  // arriving in a conversation the user walked away from, minutes later.
+  useEffect(() => {
+    setQueue(prev =>
+      prev.every(item => item.chatId === chat.id)
+        ? prev
+        : prev.filter(item => item.chatId === chat.id),
+    );
+  }, [chat.id]);
 
   const status =
     load.kind === 'loading'
@@ -139,11 +233,17 @@ export function ChatScreen({
       : load.kind === 'error'
       ? load.message
       : busy
-      ? 'Generating…'
+      ? toolStatus || 'Generating…'
       : ctx
-      ? `${model?.name ?? chat.modelId} · context ${ctx.used}/${ctx.total}` +
-        (capped ? ' · reply stopped at the length limit' : '') +
-        (ctx.used / ctx.total > 0.75 ? ' · older turns will be trimmed soon' : '')
+      ? // The GGUF runtime does not report occupancy (its window is large
+        // enough that the trimming arithmetic never runs), so it shows the
+        // window alone rather than a misleading "0/164000".
+        `${model?.name ?? chat.modelId} · ` +
+        (ctx.used > 0
+          ? `context ${ctx.used}/${ctx.total}` +
+            (ctx.used / ctx.total > 0.75 ? ' · older turns will be trimmed soon' : '')
+          : `${ctx.total.toLocaleString()} ctx`) +
+        (capped ? ' · reply stopped at the length limit' : '')
       : `${model?.name ?? chat.modelId} · ${load.contextLength} ctx · loaded in ${(
           load.loadMs / 1000
         ).toFixed(1)}s`;
@@ -190,10 +290,16 @@ export function ChatScreen({
       </View>
 
       <Composer
-        busy={busy}
-        disabled={load.kind !== 'ready'}
-        onSend={send}
+        busy={busy || draining}
+        ready={ready}
+        // Only a load failure blocks writing entirely: while the model is still
+        // coming up, a message can be queued.
+        disabled={load.kind === 'error'}
+        canAttach={!!model?.supportsImages}
+        queued={queue.filter(item => item.chatId === chat.id)}
+        onSend={submit}
         onStop={stop}
+        onUnqueue={id => setQueue(prev => prev.filter(item => item.id !== id))}
       />
 
       <Sheet visible={sheet} title="This chat" onClose={() => setSheet(false)}>
@@ -207,7 +313,7 @@ export function ChatScreen({
           label="Reasoning"
           hint={
             model?.supportsReasoning
-              ? 'Qwen3 thinks before answering. Slower, and it spends context.'
+              ? `${model?.name ?? 'This model'} thinks before answering. Slower, and it spends context.`
               : `${model?.name ?? 'This model'} has no reasoning mode.`
           }
           value={settings.thinking && !!model?.supportsReasoning}

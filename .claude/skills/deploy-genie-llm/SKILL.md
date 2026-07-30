@@ -63,7 +63,10 @@ There are **two halves**, and conflating them causes most confusion:
    ```
    QCS8550 appears as `QCS8550 (Proxy)` with `chipset:qualcomm-qcs8550-proxy`,
    `hexagon:v73`. "Proxy" = compiles for the arch but has no hosted device for
-   profiling, so pass `--skip-profiling --skip-inferencing`.
+   profiling, so pass `--skip-profiling`. (Not `--skip-inferencing` too --
+   that flag no longer exists; `qai-hub-models` is installed unpinned, so its
+   CLI drifts across image rebuilds. Check `qai-hub-models export <id>
+   --help` inside the container if a flag suddenly errors as unrecognized.)
 5. **A QAIRT SDK is available** (version >= the one AI Hub compiles with; the
    export prints `qairt: X.Y.Z...` at the end). Runtime version is forgiving in
    practice (see gotcha below). You need, for the device's Hexagon arch:
@@ -129,7 +132,7 @@ did ~19.9 tok/s, 92 ms TTFT.
 - [ ] Model `genie_compatible: true`
 - [ ] Right pip extra (from package README, not website)
 - [ ] Compile target confirmed via `hub.get_devices()` (proxy is fine)
-- [ ] `--skip-profiling --skip-inferencing` for proxy targets
+- [ ] `--skip-profiling` for proxy targets (verify with `--help` -- this CLI drifts)
 - [ ] QAIRT runtime staged (bundle has NO runtime) with correct hexagon-vNN
 - [ ] Prompt uses the model's exact chat template with REAL newlines
 - [ ] Context length low enough to fit the DSP (start short on unknown chips)

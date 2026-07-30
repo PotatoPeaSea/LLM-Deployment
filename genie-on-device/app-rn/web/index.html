@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Genie Chat</title>
+    <!--
+      viewport-fit + user-scalable=no: this is an app shell, not a document.
+      Pinch-zooming a chat composer on a touch panel is never what was meant.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <style>
+      /*
+        react-native-web maps `flex: 1` onto real flex containers, so the chain
+        from <html> down to the root node has to actually be full-height or the
+        app collapses to zero and renders blank.
+      */
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+      #root {
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

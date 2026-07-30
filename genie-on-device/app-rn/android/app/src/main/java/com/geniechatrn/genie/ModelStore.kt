@@ -15,12 +15,43 @@ import java.io.File
  *
  *   /sdcard/Android/data/com.geniechatrn/files/models/<model-id>/
  */
+/**
+ * Which inference stack a model runs on. Two of them ship in this app because
+ * they take different artifacts and neither can load the other's:
+ *
+ *  GENIE  -- QAIRT's Genie C API over pre-compiled QNN context binaries
+ *            (genie_bridge.cpp / ChatEngine). Prompts are rendered by our own
+ *            [ChatTemplate].
+ *  GENIEX -- Qualcomm's GenieX SDK running community GGUF through llama.cpp
+ *            (GenieXEngine). The SDK owns the tokenizer and applies the model's
+ *            real chat template, so ChatTemplate is unused for these.
+ *
+ * They also compete for the same DSP/GPU memory, so only one model is ever
+ * resident regardless of runtime -- GenieModule enforces that.
+ */
+enum class Runtime { GENIE, GENIEX }
+
 data class ModelSpec(
     val id: String,
     val displayName: String,
     val template: ChatTemplate,
     /** Qwen3 can reason on demand; the Llamas have no such mode. */
     val supportsReasoning: Boolean,
+    /**
+     * Markers [ReasoningSplitter] uses to pull thinking out of the reply stream.
+     * Only meaningful when [supportsReasoning] is true. Qwen's `<think>` /
+     * `</think>` convention is the default; models with a different reasoning
+     * channel (e.g. Gemma 4's) override it.
+     */
+    val thinkOpen: String = "<think>",
+    val thinkClose: String = "</think>",
+    /**
+     * False if this model's chat template renders the opening tag into the
+     * PROMPT rather than leaving it for the model to generate, so it never
+     * appears in the completion stream ReasoningSplitter sees (confirmed
+     * on-device for qwen3_5_2b -- see its override for the raw evidence).
+     */
+    val thinkOpenInStream: Boolean = true,
     val note: String,
     /**
      * System prompt, per model rather than global.
@@ -32,6 +63,28 @@ data class ModelSpec(
     val systemPrompt: String,
     /** Appended when the brevity toggle is on. */
     val brevityClause: String = " Answer in one or two short, natural sentences.",
+
+    val runtime: Runtime = Runtime.GENIE,
+
+    // ---- GENIEX only ------------------------------------------------------
+    /** GGUF weights, relative to the bundle dir. */
+    val ggufFile: String? = null,
+    /** Vision projector. Present iff the model can see images. */
+    val mmprojFile: String? = null,
+    /** "npu" | "gpu" | "cpu" | "hybrid" -- passed to GenieX as compute_unit. */
+    val computeUnit: String = "npu",
+    /**
+     * Context window, declared here rather than read from the bundle.
+     *
+     * For a QNN bundle the window is baked into the export, so ModelStore reads
+     * it back (below). A GGUF has no such ceiling -- Qwen3.5-2B is trained to
+     * 262144 -- so the number is OUR choice, bounded by what the Hexagon DSP can
+     * actually map. Measured on this QCS8550: 176K loads, 192K fails in
+     * fastrpc_mmap. 164K keeps a margin under that wall.
+     */
+    val declaredContextLength: Int = 0,
+    val supportsImages: Boolean = false,
+    val supportsTools: Boolean = false,
 )
 
 object ModelStore {
@@ -78,6 +131,72 @@ object ModelStore {
             systemPrompt = "You are a helpful assistant.",
             brevityClause = " Be brief.",
         ),
+        ModelSpec(
+            id = "qwen3_5_2b",
+            displayName = "Qwen3.5 2B",
+            // Unused: GenieX applies the model's own chat template from the
+            // GGUF. Kept non-null so the spec type stays uniform.
+            template = ChatTemplate.Qwen3,
+            supportsReasoning = true,
+            // Confirmed on-device: with thinking on, the GGUF's own Jinja
+            // template renders "<think>\n" straight into the prompt to force
+            // reasoning, so the completion never contains the literal open tag
+            // -- only "</think>" leaked into the visible bubble with no
+            // Thoughts disclosure at all, until this override.
+            thinkOpenInStream = false,
+            note = "164K context, sees images, uses tools",
+            // This one has room to spare, so it gets the prompt the others
+            // cannot afford -- and it has to be told about its tools.
+            systemPrompt =
+                "You are a helpful assistant running entirely on this device. " +
+                    "You can call tools to answer questions about the device, the " +
+                    "user's contacts and calendar, and the web. Call a tool only " +
+                    "when it is actually needed, and answer directly otherwise.",
+            brevityClause = " Be brief.",
+            runtime = Runtime.GENIEX,
+            ggufFile = "Qwen3.5-2B-Q4_0.gguf",
+            mmprojFile = "mmproj-F16.gguf",
+            computeUnit = "npu",
+            declaredContextLength = 164000,
+            supportsImages = true,
+            supportsTools = true,
+        ),
+        ModelSpec(
+            id = "gemma4_e2b",
+            displayName = "Gemma 4 E2B",
+            // Unused, same reason as qwen3_5_2b: GenieX renders the GGUF's own
+            // template.
+            template = ChatTemplate.Qwen3,
+            supportsReasoning = true,
+            // Gemma 4 does not use Qwen's <think>/</think> convention -- it
+            // reasons on a "thought" channel, opened with <|channel>thought and
+            // closed with <channel|>. Without this override ReasoningSplitter
+            // never finds the markers and the reasoning leaks straight into the
+            // visible answer (see HANDOFF-cli-tool-and-crash-rootcause.md).
+            thinkOpen = "<|channel>thought",
+            thinkClose = "<channel|>",
+            note = "Second GenieX/GGUF model -- added to test GenieX<->GenieX " +
+                "switching (same runtime, different model) in isolation from " +
+                "the QNN<->GenieX cross-runtime switch bugs. See " +
+                "HANDOFF-cli-tool-and-crash-rootcause.md.",
+            systemPrompt =
+                "You are a helpful assistant running entirely on this device's NPU.",
+            brevityClause = " Be brief.",
+            runtime = Runtime.GENIEX,
+            ggufFile = "gemma-4-E2B-it-Q4_0.gguf",
+            // No mmprojFile -- text-only on purpose, same reason as
+            // qwen3_5_2b's images being off: the VLM path SIGSEGVs
+            // unconditionally on this device/plugin build.
+            computeUnit = "npu",
+            // Deliberately smaller than qwen3_5_2b's 164000: this is testing
+            // switch reliability, not context ceilings, and Gemma 4's hybrid
+            // local/global attention (sliding_window=512 on 4 of every 5
+            // layers) means most of the KV cache doesn't scale with this
+            // number anyway -- no need to chase the DSP mapping wall here.
+            declaredContextLength = 32768,
+            supportsImages = false,
+            supportsTools = false,
+        ),
     )
 
     val DEFAULT_MODEL_ID = MODELS.first().id
@@ -109,7 +228,29 @@ object ModelStore {
     fun stagedDir(context: Context, modelId: String): File =
         File(modelsRoot(context), modelId)
 
-    private fun isBundle(dir: File) = File(dir, "genie_config.json").isFile
+    /**
+     * Completion markers, written LAST so an interrupted transfer never looks
+     * like a finished bundle.
+     *
+     * A QNN bundle gets this for free: genie_config.json is what every check
+     * keys on, and [stage] copies it after the binaries. A GGUF bundle has no
+     * such file -- the weights are one 1.15GB blob -- so the push script and
+     * [stage] each drop their own marker instead.
+     */
+    private const val PUSHED_MARKER = ".push_complete"
+    private const val STAGED_MARKER = ".staged"
+
+    /** Is [dir] a complete bundle as delivered by adb (external storage)? */
+    private fun isPushedBundle(dir: File, spec: ModelSpec) = when (spec.runtime) {
+        Runtime.GENIE -> File(dir, "genie_config.json").isFile
+        Runtime.GENIEX -> File(dir, PUSHED_MARKER).isFile
+    }
+
+    /** Is [dir] a complete bundle in internal storage, ready to load? */
+    private fun isStagedBundle(dir: File, spec: ModelSpec) = when (spec.runtime) {
+        Runtime.GENIE -> File(dir, "genie_config.json").isFile
+        Runtime.GENIEX -> File(dir, STAGED_MARKER).isFile
+    }
 
     /**
      * Copy a pushed bundle into internal storage if it isn't there already.
@@ -119,23 +260,27 @@ object ModelStore {
      * an interrupted copy must not look like a complete bundle.
      */
     fun stage(context: Context, modelId: String, onProgress: (Long, Long) -> Unit): File {
+        val spec = spec(modelId)
         val target = bundleDir(context, modelId)
-        if (isBundle(target)) return target
+        if (isStagedBundle(target, spec)) return target
 
         val source = stagedDir(context, modelId)
-        require(isBundle(source)) {
+        require(isPushedBundle(source, spec)) {
+            val script = if (spec.runtime == Runtime.GENIEX) "11_push_gguf_model.sh" else "10_push_app_model.sh"
             "Model bundle not on device. Push it from the host:\n" +
-                "./scripts/10_push_app_model.sh $modelId ${context.packageName}"
+                "./scripts/$script $modelId ${context.packageName}"
         }
 
         target.mkdirs()
+        // The marker is copied last, by hand, once everything else has landed.
+        val marker = if (spec.runtime == Runtime.GENIEX) PUSHED_MARKER else "genie_config.json"
         val files = source.listFiles { f -> f.isFile }?.sortedBy { it.name } ?: emptyList()
-        val total = files.sumOf { it.length() }
+        val payload = files.filter { it.name != marker && it.name != STAGED_MARKER }
+        val total = payload.sumOf { it.length() }
         var copied = 0L
         Log.i(TAG, "staging $modelId to internal storage (${total / 1_000_000}MB)")
 
-        for (file in files) {
-            if (file.name == "genie_config.json") continue
+        for (file in payload) {
             file.inputStream().use { input ->
                 File(target, file.name).outputStream().use { output ->
                     val buffer = ByteArray(4 shl 20)
@@ -149,16 +294,29 @@ object ModelStore {
                 }
             }
         }
-        File(source, "genie_config.json").copyTo(File(target, "genie_config.json"), overwrite = true)
+        when (spec.runtime) {
+            Runtime.GENIE ->
+                File(source, "genie_config.json")
+                    .copyTo(File(target, "genie_config.json"), overwrite = true)
+            Runtime.GENIEX -> File(target, STAGED_MARKER).writeText("ok")
+        }
         Log.i(TAG, "staged $modelId")
         return target
     }
 
-    /** A model is usable if it is staged internally, or still pushable from external. */
-    fun isAvailable(context: Context, modelId: String): Boolean =
-        isBundle(bundleDir(context, modelId)) || isBundle(stagedDir(context, modelId))
+    /** Absolute path of a file inside a staged bundle. */
+    fun bundleFile(context: Context, modelId: String, name: String): String =
+        File(bundleDir(context, modelId), name).absolutePath
 
-    fun isStaged(context: Context, modelId: String): Boolean = isBundle(bundleDir(context, modelId))
+    /** A model is usable if it is staged internally, or still pushable from external. */
+    fun isAvailable(context: Context, modelId: String): Boolean {
+        val spec = spec(modelId)
+        return isStagedBundle(bundleDir(context, modelId), spec) ||
+            isPushedBundle(stagedDir(context, modelId), spec)
+    }
+
+    fun isStaged(context: Context, modelId: String): Boolean =
+        isStagedBundle(bundleDir(context, modelId), spec(modelId))
 
     /** Every known model plus whether its bundle is actually on the device. */
     fun inventory(context: Context): List<Pair<ModelSpec, Boolean>> {
@@ -209,7 +367,11 @@ object ModelStore {
         return root.toString()
     }
 
-    /** Context length the bundle was exported with -- the app must not exceed it. */
+    /**
+     * Context length the bundle was exported with -- the app must not exceed it.
+     * GENIE only; a GGUF has no exported window, so GENIEX models take theirs
+     * from [ModelSpec.declaredContextLength].
+     */
     fun contextLength(bundleDir: File): Int = try {
         JSONObject(File(bundleDir, "genie_config.json").readText())
             .getJSONObject("dialog").getJSONObject("context").getInt("size")

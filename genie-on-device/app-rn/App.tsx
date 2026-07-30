@@ -38,6 +38,16 @@ export default function App() {
         setChats(storedChats);
         setSettings(storedSettings);
         setModels(availableModels);
+        // Resume into whatever chat was open before -- in particular before a
+        // GenieModule-triggered restart (see GenieModule.kt switchToOrRestart),
+        // which otherwise would silently drop the user at the chat list.
+        // Guarded against a chat that no longer exists (e.g. storage edited
+        // by hand), which would otherwise wedge App.tsx on a null openChat
+        // that never falls back to the list.
+        const resumeId = storedSettings.lastOpenChatId;
+        if (resumeId && storedChats.some(c => c.id === resumeId)) {
+          setOpenChatId(resumeId);
+        }
       })
       .finally(() => setReady(true));
   }, []);
@@ -65,6 +75,14 @@ export default function App() {
     });
   }, []);
 
+  const setOpenChat = useCallback(
+    (id: string | null) => {
+      setOpenChatId(id);
+      patchSettings({lastOpenChatId: id});
+    },
+    [patchSettings],
+  );
+
   const startChat = useCallback(
     (modelId: string) => {
       const chat: Chat = {
@@ -78,9 +96,9 @@ export default function App() {
       persistChats([chat, ...chats]);
       patchSettings({lastModelId: modelId});
       setPicking(false);
-      setOpenChatId(chat.id);
+      setOpenChat(chat.id);
     },
-    [chats, patchSettings, persistChats],
+    [chats, patchSettings, persistChats, setOpenChat],
   );
 
   const deleteChat = useCallback(
@@ -116,7 +134,7 @@ export default function App() {
           chat={openChat}
           models={models}
           settings={settings}
-          onBack={() => setOpenChatId(null)}
+          onBack={() => setOpenChat(null)}
           onChange={updateChat}
           onSettings={patchSettings}
         />
@@ -124,7 +142,7 @@ export default function App() {
         <ChatListScreen
           chats={chats}
           models={models}
-          onOpen={chat => setOpenChatId(chat.id)}
+          onOpen={chat => setOpenChat(chat.id)}
           onNew={() => {
             // One model installed is not a choice worth a sheet.
             if (installed.length === 1) {

@@ -108,6 +108,34 @@ android {
         jniLibs {
             useLegacyPackaging true
             keepDebugSymbols += "**/*.so"
+
+            // Two QAIRT stacks end up in this APK: the one staged into
+            // src/main/jniLibs (09_stage_qairt_for_app.sh) that libGenie.so is
+            // built against, and a newer-QAIRT copy the GenieX AAR bundles.
+            // They collide on these three filenames, and OUR staged copies must
+            // win -- the QAIRT set has to be internally consistent or Genie
+            // crashes reaching across a version boundary.
+            //
+            // libQnnHtpNetRunExtensions.so is the one that actually bit us:
+            // Genie dlopens it by name to apply htp_backend_ext_config.json, and
+            // taking the AAR's newer-QAIRT copy against our older libGenie.so
+            // SIGSEGVs inside it during GenieDialog_create (fault addr 0x18,
+            // just after QnnBackend_create logs success). Staging our matching
+            // copy (a611b6f..., same QAIRT as libGenie/libQnnHtp) and pinning it
+            // here fixes the NPU-wide crash. libQnnHtp/libQnnSystem collide too;
+            // GenieX itself is unaffected -- its NPU path is the llama_cpp
+            // plugin (libggml-hexagon + libggml-htp-v73), no QNN library at all.
+            pickFirsts += ["lib/arm64-v8a/libQnnHtp.so",
+                           "lib/arm64-v8a/libQnnSystem.so",
+                           "lib/arm64-v8a/libQnnHtpNetRunExtensions.so"]
+
+            // This device's DSP is v73 only. The GenieX AAR also drags in
+            // libQnnHtpV79/V81* + libQnnNetRunDirectV79/V81* (~40MB for hardware
+            // we don't have). Harmless to drop; keeps the APK's arch set clean.
+            excludes += ["lib/arm64-v8a/libQnnHtpV79*.so",
+                        "lib/arm64-v8a/libQnnHtpV81*.so",
+                        "lib/arm64-v8a/libQnnNetRunDirectV79*.so",
+                        "lib/arm64-v8a/libQnnNetRunDirectV81*.so"]
         }
     }
     signingConfigs {
@@ -138,6 +166,22 @@ dependencies {
 
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+
+    // GenieX: the GGUF/llama.cpp runtime, used only by the Qwen3.5-2B model.
+    // Ships its own arm64 .so set (libgeniex*, libggml*, libllama*), so unlike
+    // the Genie C API path there is no CMake/JNI of ours involved.
+    //
+    // NOTE on vision: neither this version nor the newer 0.3.16 can load the
+    // community Qwen3.5-2B vision projector -- its clip.cpp does not support the
+    // `qwen3vl_merger` projector type and aborts with "failed to seek for tensor
+    // mm.2.bias". The app detects this at load (GenieXEngine.visionReady) and
+    // declines images gracefully instead of crashing. Bump this dependency once
+    // GenieX ships qwen3vl_merger support and vision lights up with no code
+    // change. Local-AAR 0.3.16 was tried and rejected (same failure, 80MB blob).
+    implementation("com.qualcomm.qti:geniex-android:0.3.12")
+
+    // generateStreamFlow returns a Flow; the engine collects it from a worker.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

@@ -13,6 +13,12 @@ reproduce the result from scratch.
 - **Companion docs:** `ARCHITECTURE.md` (how the pieces interact),
   `README.md` (findings summary + directory layout), and the
   `deploy-genie-llm` skill (condensed runbook).
+- **Current app status:** the bundle this guide produces is one of five
+  models in **[GenieChatRN](../app-rn)**, the shipped chat app — once you
+  have a bundle in `workspace/output/<model-id>/`, `cd app-rn && bash
+  scripts/deploy.sh --models <model-id>` pushes it into the app instead of
+  (or in addition to) using `genie-t2t-run`/`ask.sh` directly. See
+  [USAGE.md](USAGE.md).
 
 ---
 
@@ -92,8 +98,12 @@ chipset:qualcomm-qcs8550-proxy   hexagon:v73   framework:qnn
 htp-supports-fp16:true           htp-supports-weight-sharing:true
 ```
 - **"Proxy"** = AI Hub compiles for that architecture but has no physical device
-  in its farm, so it can't auto-profile/inference-test. Use
-  `--skip-profiling --skip-inferencing` when exporting.
+  in its farm, so it can't auto-profile. Use `--skip-profiling` when exporting.
+  (An older `--skip-inferencing` flag doesn't exist anymore — `01_build_image.sh`
+  installs `qai-hub-models` unpinned, so its CLI drifts between image
+  rebuilds; confirmed 2026-07-27 that flag now hard-errors as unrecognized.
+  Check `qai-hub-models export <id> --help` inside the container before
+  trusting any flag list, including this one.)
 - Note **`hexagon:v73`** — you will need the matching `hexagon-v73` DSP skels at
   runtime.
 
