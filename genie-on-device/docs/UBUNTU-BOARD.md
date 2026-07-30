@@ -19,7 +19,7 @@ browser  ──adb forward 8080──────────────>  app-
                                               │  supervises
 search relay  <──adb reverse 8079─────────    │
    │                                          v
-   └─> DuckDuckGo, Wikipedia               llama-server (llama.cpp)
+   └─> Exa (api.exa.ai)                    llama-server (llama.cpp)
                                               │
                                               └─> CPU, or Hexagon v73 NPU
 ```
@@ -53,6 +53,10 @@ cd genie-on-device/app-rn
 bash scripts/deploy-linux.sh --models gguf     # build, push, launch
 node scripts/search-relay.mjs 8079             # in another terminal, for web_search
 ```
+
+`web_search` needs an Exa API key on the workstation: set `EXA_API_KEY` in the
+environment, or drop an `EXA_API_KEY = ...` line in a gitignored `secrets.txt`
+at the repo root and the relay will pick it up automatically.
 
 Then open **http://127.0.0.1:8080**.
 
@@ -120,10 +124,11 @@ devices only — no ethernet, no wifi, no default route. Consequences:
   rather than using a package manager.
 - The browser reaches the UI via `adb forward` (host → board).
 - `web_search` reaches the internet via `adb reverse` (board → host) into
-  `scripts/search-relay.mjs`, which runs on the workstation and does the
-  DuckDuckGo/Wikipedia lookups there. Only the query string crosses the link.
-  Without the relay running, `web_search` returns a sentence saying so and the
-  model answers from its weights.
+  `scripts/search-relay.mjs`, which runs on the workstation and does the Exa
+  lookup there (also where the `EXA_API_KEY` lives — it never crosses the
+  link). Only the query string crosses the link. Without the relay running,
+  `web_search` returns a sentence saying so and the model answers from its
+  weights.
 
 **The build needs a matching sysroot.** The Snapdragon toolchain image is Debian
 trixie; its glibc headers redirect `strtol`/`sscanf` to `__isoc23_*` symbols
